@@ -262,11 +262,100 @@ class UIController {
             }
         }
 
+        // Live real-time update of selected tower upgrade/repair buttons & stats without needing to re-click
+        this.updateActiveTowerDetail(state);
+
+        // Live update hotbar affordability
+        this.updateHotbarAffordability(state.gold);
+
         // Check game over
         if (state.gameOver) {
             document.getElementById('modal-gameover').classList.remove('hidden');
             document.getElementById('final-score-lose').textContent = state.score;
             document.getElementById('final-wave-lose').textContent = state.wave;
+        }
+    }
+
+    updateHotbarAffordability(gold) {
+        document.querySelectorAll('.tower-btn').forEach(btn => {
+            const typeId = parseInt(btn.dataset.type, 10);
+            const t = this.towerTypes[typeId];
+            if (!t) return;
+            const unaffordable = gold < t.cost;
+            btn.classList.toggle('unaffordable', unaffordable);
+        });
+    }
+
+    updateActiveTowerDetail(state) {
+        if (!this.selectedPlacedTower) return;
+        const t = this.selectedPlacedTower;
+        const info = this.towerTypes[t.type];
+        if (!info) return;
+
+        const upgradeCost = t.tier === 1 ? Math.floor(info.cost * 1.5) : (t.tier === 2 ? Math.floor(info.cost * 2.5) : 0);
+        const missingHp = Math.max(0, t.maxHp - t.hp);
+        const repairCost = missingHp > 0 ? Math.max(10, Math.floor(info.cost * 0.35 * (missingHp / t.maxHp))) : 0;
+        const refund = Math.floor(info.cost * 0.7 * Math.max(0.2, t.hp / t.maxHp));
+
+        // Update Upgrade button disabled state in real-time
+        const upBtn = document.getElementById('btn-upgrade-tower');
+        if (upBtn && t.tier < 3) {
+            const canAfford = state.gold >= upgradeCost;
+            if (upBtn.disabled !== !canAfford) {
+                upBtn.disabled = !canAfford;
+            }
+        }
+
+        // Update Repair button disabled state and text
+        const repBtn = document.getElementById('btn-repair-tower');
+        if (repBtn) {
+            const canRepair = missingHp > 0 && state.gold >= repairCost;
+            if (repBtn.disabled !== !canRepair) {
+                repBtn.disabled = !canRepair;
+            }
+            const expectedText = `🔧 Repair (💰 ${repairCost})`;
+            if (repBtn.textContent.trim() !== expectedText.trim()) {
+                repBtn.textContent = expectedText;
+            }
+        }
+
+        // Update Sell button refund
+        const sellBtn = document.getElementById('btn-sell-tower');
+        if (sellBtn) {
+            const expectedSell = `💰 Sell (+${refund})`;
+            if (sellBtn.textContent.trim() !== expectedSell.trim()) {
+                sellBtn.textContent = expectedSell;
+            }
+        }
+
+        // Update HP bar & text smoothly
+        const hpFill = document.querySelector('.detail-hp-bar .hp-fill');
+        const hpText = document.querySelector('.detail-hp-bar .hp-text');
+        if (hpFill) {
+            const pct = Math.min(100, Math.max(0, (t.hp / t.maxHp) * 100));
+            hpFill.style.width = `${pct}%`;
+            if (pct < 30) {
+                hpFill.style.background = 'linear-gradient(90deg, #ef4444, #f87171)';
+            } else if (pct < 65) {
+                hpFill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+            } else {
+                hpFill.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
+            }
+        }
+        if (hpText) {
+            hpText.textContent = `HP: ${Math.round(t.hp)} / ${Math.round(t.maxHp)}`;
+        }
+
+        // Update status box
+        const statusBox = document.getElementById('detail-stat-status');
+        if (statusBox) {
+            statusBox.innerHTML = `<strong>Status:</strong> ${t.stunTimer > 0 ? '⚡ Stunned' : 'Active'}`;
+        }
+
+        // Update refund stat box
+        const refundBox = document.getElementById('detail-stat-refund');
+        if (refundBox) {
+            refundBox.innerHTML = `<strong>Refund:</strong> 💰 ${refund}`;
         }
     }
 
@@ -311,9 +400,9 @@ class UIController {
 
             <div class="detail-stats-grid">
                 <div class="stat-box"><strong>Range:</strong> ${t.range.toFixed(1)}</div>
-                <div class="stat-box"><strong>Status:</strong> ${t.stunTimer > 0 ? '⚡ Stunned' : 'Active'}</div>
+                <div class="stat-box" id="detail-stat-status"><strong>Status:</strong> ${t.stunTimer > 0 ? '⚡ Stunned' : 'Active'}</div>
                 <div class="stat-box"><strong>Grid:</strong> (${t.gx}, ${t.gy})</div>
-                <div class="stat-box"><strong>Refund:</strong> 💰 ${refund}</div>
+                <div class="stat-box" id="detail-stat-refund"><strong>Refund:</strong> 💰 ${refund}</div>
             </div>
 
             <div class="detail-actions">

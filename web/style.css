@@ -555,9 +555,18 @@ body {
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background 0.15s, border-color 0.15s, opacity 0.2s, transform 0.15s;
     color: var(--text-primary);
     flex-shrink: 0;
+}
+
+.tower-btn.unaffordable {
+    opacity: 0.55;
+    border-color: #273549;
+}
+
+.tower-btn.unaffordable:hover {
+    opacity: 0.8;
 }
 
 .tower-btn:hover {
@@ -570,6 +579,7 @@ body {
     background: #0c4a6e;
     border-color: var(--accent-blue);
     box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    opacity: 1.0 !important;
 }
 
 .tower-key {
@@ -605,6 +615,11 @@ body {
     color: var(--accent-gold);
     font-family: monospace;
     font-weight: 700;
+    transition: color 0.2s;
+}
+
+.tower-btn.unaffordable .tower-cost {
+    color: #94a3b8;
 }
 
 .utility-controls {
