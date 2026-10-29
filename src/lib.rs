@@ -1,0 +1,222 @@
+pub mod enemy;
+pub mod game;
+pub mod grid;
+pub mod projectile;
+pub mod tower;
+pub mod wave;
+
+use game::Game;
+use tower::TowerType;
+
+static mut GAME_INSTANCE: Option<Game> = None;
+
+// Reusable export buffers to avoid any heap allocations across the WASM boundary
+static mut HEADER_BUFFER: [f32; 16] = [0.0; 16];
+static mut PATH_BUFFER: [f32; 512 * 2] = [0.0; 1024];
+static mut TOWERS_BUFFER: [f32; 256 * 12] = [0.0; 3072];
+static mut ENEMIES_BUFFER: [f32; 512 * 11] = [0.0; 5632];
+static mut PROJECTILES_BUFFER: [f32; 512 * 6] = [0.0; 3072];
+static mut EVENTS_BUFFER: [f32; 256 * 6] = [0.0; 1536];
+
+fn get_game() -> &'static mut Game {
+    unsafe {
+        let ptr = std::ptr::addr_of_mut!(GAME_INSTANCE);
+        if (*ptr).is_none() {
+            *ptr = Some(Game::new());
+        }
+        (*ptr).as_mut().unwrap()
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn game_init() {
+    unsafe {
+        GAME_INSTANCE = Some(Game::new());
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn game_reset() {
+    get_game().reset();
+}
+
+#[no_mangle]
+pub extern "C" fn game_update(dt: f32) {
+    let g = get_game();
+    g.update(dt);
+    sync_buffers();
+}
+
+#[no_mangle]
+pub extern "C" fn game_can_place_tower(gx: i32, gy: i32) -> i32 {
+    if gx < 0 || gy < 0 {
+        return 0;
+    }
+    if get_game().can_place_tower(gx as usize, gy as usize) {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn game_place_tower(gx: i32, gy: i32, tower_type: i32) -> i32 {
+    if gx < 0 || gy < 0 || tower_type < 0 || tower_type > 7 {
+        return -1;
+    }
+    let t_type = TowerType::from_u8(tower_type as u8);
+    get_game().place_tower(gx as usize, gy as usize, t_type)
+}
+
+#[no_mangle]
+pub extern "C" fn game_upgrade_tower(tower_id: i32) -> i32 {
+    if tower_id < 0 {
+        return -1;
+    }
+    get_game().upgrade_tower(tower_id as usize)
+}
+
+#[no_mangle]
+pub extern "C" fn game_repair_tower(tower_id: i32) -> i32 {
+    if tower_id < 0 {
+        return -1;
+    }
+    get_game().repair_tower(tower_id as usize)
+}
+
+#[no_mangle]
+pub extern "C" fn game_sell_tower(tower_id: i32) -> i32 {
+    if tower_id < 0 {
+        return -1;
+    }
+    get_game().sell_tower(tower_id as usize)
+}
+
+#[no_mangle]
+pub extern "C" fn game_start_next_wave() -> i32 {
+    if get_game().start_next_wave() {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn game_add_gold(amount: i32) {
+    get_game().gold += amount;
+}
+
+fn sync_buffers() {
+    let g = get_game();
+    unsafe {
+        // Header
+        HEADER_BUFFER[0] = g.gold as f32;
+        HEADER_BUFFER[1] = g.lives as f32;
+        HEADER_BUFFER[2] = g.max_lives as f32;
+        HEADER_BUFFER[3] = g.score as f32;
+        HEADER_BUFFER[4] = g.wave_manager.current_wave as f32;
+        HEADER_BUFFER[5] = if g.wave_manager.is_wave_active { 1.0 } else { 0.0 };
+        HEADER_BUFFER[6] = g.wave_manager.time_until_next_wave;
+        HEADER_BUFFER[7] = if g.game_over { 1.0 } else { 0.0 };
+        HEADER_BUFFER[8] = if g.victory { 1.0 } else { 0.0 };
+        HEADER_BUFFER[9] = g.towers.len() as f32;
+        HEADER_BUFFER[10] = g.enemies.len() as f32;
+        HEADER_BUFFER[11] = g.projectiles.len() as f32;
+        HEADER_BUFFER[12] = g.visual_events.len() as f32;
+        HEADER_BUFFER[13] = g.grid.current_path.len() as f32;
+        HEADER_BUFFER[14] = g.total_enemies_killed as f32;
+        HEADER_BUFFER[15] = g.total_damage_dealt;
+
+        // Path
+        for (i, &(px, py)) in g.grid.current_path.iter().enumerate().take(512) {
+            PATH_BUFFER[i * 2] = px as f32;
+            PATH_BUFFER[i * 2 + 1] = py as f32;
+        }
+
+        // Towers
+        for (i, t) in g.towers.iter().enumerate().take(256) {
+            let offset = i * 12;
+            TOWERS_BUFFER[offset] = t.id as f32;
+            TOWERS_BUFFER[offset + 1] = t.gx as f32;
+            TOWERS_BUFFER[offset + 2] = t.gy as f32;
+            TOWERS_BUFFER[offset + 3] = t.world_x;
+            TOWERS_BUFFER[offset + 4] = t.world_y;
+            TOWERS_BUFFER[offset + 5] = t.tower_type as u8 as f32;
+            TOWERS_BUFFER[offset + 6] = t.tier as f32;
+            TOWERS_BUFFER[offset + 7] = t.hp;
+            TOWERS_BUFFER[offset + 8] = t.max_hp;
+            TOWERS_BUFFER[offset + 9] = t.range;
+            TOWERS_BUFFER[offset + 10] = t.rotation;
+            TOWERS_BUFFER[offset + 11] = t.stun_timer;
+        }
+
+        // Enemies
+        for (i, e) in g.enemies.iter().enumerate().take(512) {
+            let offset = i * 11;
+            ENEMIES_BUFFER[offset] = e.id as f32;
+            ENEMIES_BUFFER[offset + 1] = e.variant as u8 as f32;
+            ENEMIES_BUFFER[offset + 2] = e.category as u8 as f32;
+            ENEMIES_BUFFER[offset + 3] = e.x;
+            ENEMIES_BUFFER[offset + 4] = e.y;
+            ENEMIES_BUFFER[offset + 5] = e.hp;
+            ENEMIES_BUFFER[offset + 6] = e.max_hp;
+            ENEMIES_BUFFER[offset + 7] = e.current_speed;
+            ENEMIES_BUFFER[offset + 8] = e.rotation;
+            ENEMIES_BUFFER[offset + 9] = e.slow_factor;
+            ENEMIES_BUFFER[offset + 10] = e.burn_timer;
+        }
+
+        // Projectiles
+        for (i, p) in g.projectiles.iter().enumerate().take(512) {
+            let offset = i * 6;
+            PROJECTILES_BUFFER[offset] = p.proj_type as u8 as f32;
+            PROJECTILES_BUFFER[offset + 1] = p.x;
+            PROJECTILES_BUFFER[offset + 2] = p.y;
+            PROJECTILES_BUFFER[offset + 3] = p.target_x;
+            PROJECTILES_BUFFER[offset + 4] = p.target_y;
+            PROJECTILES_BUFFER[offset + 5] = p.splash_radius;
+        }
+
+        // Visual events
+        for (i, ev) in g.visual_events.iter().enumerate().take(256) {
+            let offset = i * 6;
+            EVENTS_BUFFER[offset] = ev.event_type as f32;
+            EVENTS_BUFFER[offset + 1] = ev.x;
+            EVENTS_BUFFER[offset + 2] = ev.y;
+            EVENTS_BUFFER[offset + 3] = ev.target_x;
+            EVENTS_BUFFER[offset + 4] = ev.target_y;
+            EVENTS_BUFFER[offset + 5] = ev.value;
+        }
+    }
+}
+
+// Pointers to memory
+#[no_mangle]
+pub extern "C" fn get_header_ptr() -> *const f32 {
+    std::ptr::addr_of!(HEADER_BUFFER) as *const f32
+}
+
+#[no_mangle]
+pub extern "C" fn get_path_ptr() -> *const f32 {
+    std::ptr::addr_of!(PATH_BUFFER) as *const f32
+}
+
+#[no_mangle]
+pub extern "C" fn get_towers_ptr() -> *const f32 {
+    std::ptr::addr_of!(TOWERS_BUFFER) as *const f32
+}
+
+#[no_mangle]
+pub extern "C" fn get_enemies_ptr() -> *const f32 {
+    std::ptr::addr_of!(ENEMIES_BUFFER) as *const f32
+}
+
+#[no_mangle]
+pub extern "C" fn get_projectiles_ptr() -> *const f32 {
+    std::ptr::addr_of!(PROJECTILES_BUFFER) as *const f32
+}
+
+#[no_mangle]
+pub extern "C" fn get_events_ptr() -> *const f32 {
+    std::ptr::addr_of!(EVENTS_BUFFER) as *const f32
+}

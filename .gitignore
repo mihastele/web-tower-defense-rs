@@ -1,0 +1,22 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE configuration
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

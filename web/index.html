@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Bastion - WebAssembly Tower Defense</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Top HUD Header -->
+        <header class="game-header">
+            <div class="logo-area">
+                <span class="logo-icon">🛡️</span>
+                <div class="logo-text">
+                    <h1>CYBER BASTION</h1>
+                    <span class="logo-tag">WASM ENGINE • 60 FPS DYNAMIC MAZING</span>
+                </div>
+            </div>
+
+            <div class="hud-stats">
+                <div class="hud-item gold">
+                    <span class="hud-icon">💰</span>
+                    <div>
+                        <div class="hud-label">Gold</div>
+                        <div class="hud-val" id="hud-gold">450</div>
+                    </div>
+                </div>
+
+                <div class="hud-item lives">
+                    <span class="hud-icon">❤️</span>
+                    <div>
+                        <div class="hud-label">Core Integrity</div>
+                        <div class="hud-val" id="hud-lives">20/20</div>
+                    </div>
+                </div>
+
+                <div class="hud-item wave">
+                    <span class="hud-icon">🌊</span>
+                    <div>
+                        <div class="hud-label">Wave</div>
+                        <div class="hud-val" id="hud-wave">0</div>
+                    </div>
+                </div>
+
+                <div class="hud-item score">
+                    <span class="hud-icon">🏆</span>
+                    <div>
+                        <div class="hud-label">Score</div>
+                        <div class="hud-val" id="hud-score">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="wave-control-box">
+                <span id="wave-status-text">Wave 1 Incoming...</span>
+                <button id="btn-next-wave" class="btn-pulse">⚡ START WAVE</button>
+            </div>
+        </header>
+
+        <!-- Main Battle Arena -->
+        <main class="main-stage">
+            <div class="canvas-wrapper">
+                <canvas id="game-canvas"></canvas>
+            </div>
+
+            <!-- Side Inspection Panel -->
+            <aside class="side-panel">
+                <h2>Tactical Outpost</h2>
+                <div id="tower-detail-panel">
+                    <div class="empty-detail">
+                        <p>💡 Place towers directly onto the field to craft a maze, but <strong>the path cannot be completely blocked</strong>!</p>
+                        <p class="hint">⚠️ Beware: <strong>Tower Attackers</strong> and <strong>Bosses</strong> will target and destroy your defenses!</p>
+                        <p class="hint">Controls: Select [1-8], Click to place or inspect. Hotkeys: [U] Upgrade, [R] Repair, [S] Sell, [Space] Wave.</p>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Bottom Controls & Tower Hotbar -->
+        <footer class="bottom-panel">
+            <div id="tower-hotbar">
+                <!-- Dynamically populated by UIController -->
+            </div>
+
+            <div class="utility-controls">
+                <div class="speed-group">
+                    <button class="speed-btn" data-speed="0">⏸</button>
+                    <button class="speed-btn active" data-speed="1">1x</button>
+                    <button class="speed-btn" data-speed="2">2x</button>
+                    <button class="speed-btn" data-speed="4">4x</button>
+                </div>
+
+                <button id="btn-toggle-sfx" class="util-btn">🔊 SFX: ON</button>
+                <button id="btn-toggle-music" class="util-btn">🔇 Music: OFF</button>
+                <button id="btn-open-bestiary" class="util-btn">📖 Sprites & Bestiary</button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Bestiary & Sprite Gallery Modal -->
+    <div id="modal-bestiary" class="modal-overlay hidden">
+        <div class="modal-window">
+            <button id="btn-close-bestiary" class="modal-close">✕</button>
+            <div id="bestiary-content">
+                <!-- Populated dynamically by UIController -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="modal-gameover" class="modal-overlay hidden">
+        <div class="modal-window small">
+            <h2 class="modal-title danger">CORE DESTROYED</h2>
+            <p>The enemy horde has breached your central bastion.</p>
+            <div class="modal-stats">
+                <div>Wave: <span id="final-wave-lose">0</span></div>
+                <div>Score: <span id="final-score-lose">0</span></div>
+            </div>
+            <button class="btn-pulse btn-restart">🔄 DEPLOY AGAIN</button>
+        </div>
+    </div>
+
+    <!-- Victory Modal -->
+    <div id="modal-victory" class="modal-overlay hidden">
+        <div class="modal-window small">
+            <h2 class="modal-title success">VICTORY ACHIEVED</h2>
+            <p>All invasion waves and bosses neutralized!</p>
+            <button class="btn-pulse btn-restart">🚀 PLAY ENDLESS MODE</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/sprites.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
