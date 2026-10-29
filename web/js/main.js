@@ -84,25 +84,29 @@ class GameApp {
     }
 
     setupInput(canvas) {
-        canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
+        // Window resize and orientation change
+        window.addEventListener('resize', () => {
+            this.renderer.resize();
+        });
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                this.renderer.resize();
+                this.renderer.resetCamera();
+            }, 250);
+        });
 
-            const mx = (e.clientX - rect.left) * scaleX;
-            const my = (e.clientY - rect.top) * scaleY;
-
-            const gx = Math.floor(mx / this.renderer.cellSize);
-            const gy = Math.floor(my / this.renderer.cellSize);
+        // Helper to check and update hover tile
+        const updateHoverFromScreen = (sx, sy) => {
+            const world = this.renderer.screenToWorld(sx, sy);
+            const gx = world.gx;
+            const gy = world.gy;
 
             if (gx >= 0 && gx < this.renderer.gridWidth && gy >= 0 && gy < this.renderer.gridHeight) {
                 let isValid = false;
                 let range = 3.2;
 
                 if (this.ui.selectedTowerType !== null) {
-                    // Check placement validity via WebAssembly!
                     isValid = this.wasm.game_can_place_tower(gx, gy) === 1;
-                    const info = this.ui.towerTypes[this.ui.selectedTowerType];
                     const ranges = [3.2, 3.8, 2.8, 3.4, 2.5, 6.5, 3.5, 3.0];
                     range = ranges[this.ui.selectedTowerType] || 3.2;
                 }
@@ -111,17 +115,10 @@ class GameApp {
             } else {
                 this.hoverTile = null;
             }
-        });
+        };
 
-        canvas.addEventListener('mouseleave', () => {
-            this.hoverTile = null;
-        });
-
-        canvas.addEventListener('click', (e) => {
-            this.sound.init(); // Unlock AudioContext on click
-
-            if (!this.hoverTile) return;
-            const { x: gx, y: gy } = this.hoverTile;
+        const handleActionAt = (gx, gy) => {
+            this.sound.init();
 
             // Case A: Placing a new tower
             if (this.ui.selectedTowerType !== null) {
@@ -129,7 +126,6 @@ class GameApp {
                 if (res > 0) {
                     this.sound.playBuild();
                     this.renderer.addFloatingText(gx + 0.5, gy + 0.5, "BUILT!", "#10b981");
-                    // Keep placing or select placed tower
                     this.syncState();
                     const placed = this.state.towers.find(t => t.id === res);
                     if (placed) this.ui.selectPlacedTower(placed);
@@ -151,7 +147,174 @@ class GameApp {
                 this.ui.selectedPlacedTower = null;
                 this.ui.updateDetailPanel();
             }
+        };
+
+        // --- MOUSE CONTROLS ---
+        let isMousePanning = false;
+        let lastMouseX = 0, lastMouseY = 0;
+        let mouseMoved = false;
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const sx = e.clientX - rect.left;
+            const sy = e.clientY - rect.top;
+
+            if (isMousePanning) {
+                const dx = e.clientX - lastMouseX;
+                const dy = e.clientY - lastMouseY;
+                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) mouseMoved = true;
+                this.renderer.camera.x += dx;
+                this.renderer.camera.y += dy;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            } else {
+                updateHoverFromScreen(sx, sy);
+            }
         });
+
+        canvas.addEventListener('mousedown', (e) => {
+            // Drag on right-click, middle click, or left-click without selected tower
+            if (e.button === 1 || e.button === 2 || (e.button === 0 && this.ui.selectedTowerType === null)) {
+                isMousePanning = true;
+                mouseMoved = false;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (isMousePanning) {
+                isMousePanning = false;
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            this.hoverTile = null;
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (mouseMoved) return; // Was a pan drag, not a tap
+            const rect = canvas.getBoundingClientRect();
+            const sx = e.clientX - rect.left;
+            const sy = e.clientY - rect.top;
+            const world = this.renderer.screenToWorld(sx, sy);
+            if (world.gx >= 0 && world.gx < this.renderer.gridWidth && world.gy >= 0 && world.gy < this.renderer.gridHeight) {
+                handleActionAt(world.gx, world.gy);
+            }
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const sx = e.clientX - rect.left;
+            const sy = e.clientY - rect.top;
+            const factor = e.deltaY < 0 ? 1.15 : 0.87;
+            this.renderer.zoomAt(factor, sx, sy);
+        }, { passive: false });
+
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // --- TOUCH & MOBILE CONTROLS (Pan with 1 thumb, pinch to zoom with 2) ---
+        let lastTouchDist = 0;
+        let lastTouchX = 0, lastTouchY = 0;
+        let touchStartGx = -1, touchStartGy = -1;
+        let touchHasPanned = false;
+
+        canvas.addEventListener('touchstart', (e) => {
+            this.sound.init();
+            const rect = canvas.getBoundingClientRect();
+
+            if (e.touches.length === 1) {
+                const t = e.touches[0];
+                lastTouchX = t.clientX;
+                lastTouchY = t.clientY;
+                touchHasPanned = false;
+
+                const sx = t.clientX - rect.left;
+                const sy = t.clientY - rect.top;
+                const world = this.renderer.screenToWorld(sx, sy);
+                touchStartGx = world.gx;
+                touchStartGy = world.gy;
+
+                updateHoverFromScreen(sx, sy);
+            } else if (e.touches.length === 2) {
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                lastTouchDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+                touchHasPanned = true; // Pinching is not a tap
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Prevent native browser scrolling while interacting with map
+            const rect = canvas.getBoundingClientRect();
+
+            if (e.touches.length === 1) {
+                const t = e.touches[0];
+                const dx = t.clientX - lastTouchX;
+                const dy = t.clientY - lastTouchY;
+
+                if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                    touchHasPanned = true;
+                }
+
+                // Pan the map with thumb
+                this.renderer.camera.x += dx;
+                this.renderer.camera.y += dy;
+                lastTouchX = t.clientX;
+                lastTouchY = t.clientY;
+
+                const sx = t.clientX - rect.left;
+                const sy = t.clientY - rect.top;
+                updateHoverFromScreen(sx, sy);
+            } else if (e.touches.length === 2) {
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+                if (lastTouchDist > 0) {
+                    const factor = dist / lastTouchDist;
+                    const midX = (t1.clientX + t2.clientX) / 2 - rect.left;
+                    const midY = (t1.clientY + t2.clientY) / 2 - rect.top;
+                    this.renderer.zoomAt(factor, midX, midY);
+                }
+                lastTouchDist = dist;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            if (e.touches.length === 0) {
+                if (!touchHasPanned && touchStartGx >= 0 && touchStartGy >= 0) {
+                    // Clean tap without drag: execute build or select!
+                    handleActionAt(touchStartGx, touchStartGy);
+                }
+                lastTouchDist = 0;
+            }
+        });
+
+        // Mobile On-Screen Zoom Controls
+        const btnZoomIn = document.getElementById('btn-zoom-in');
+        const btnZoomOut = document.getElementById('btn-zoom-out');
+        const btnZoomReset = document.getElementById('btn-zoom-reset');
+
+        if (btnZoomIn) {
+            btnZoomIn.addEventListener('click', () => {
+                const cx = (canvas.width / (window.devicePixelRatio || 1)) / 2;
+                const cy = (canvas.height / (window.devicePixelRatio || 1)) / 2;
+                this.renderer.zoomAt(1.25, cx, cy);
+            });
+        }
+        if (btnZoomOut) {
+            btnZoomOut.addEventListener('click', () => {
+                const cx = (canvas.width / (window.devicePixelRatio || 1)) / 2;
+                const cy = (canvas.height / (window.devicePixelRatio || 1)) / 2;
+                this.renderer.zoomAt(0.8, cx, cy);
+            });
+        }
+        if (btnZoomReset) {
+            btnZoomReset.addEventListener('click', () => {
+                this.renderer.resetCamera();
+            });
+        }
     }
 
     startNextWave() {

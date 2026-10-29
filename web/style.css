@@ -260,24 +260,84 @@ body {
 }
 
 .canvas-wrapper {
+    flex: 1;
+    min-width: 0;
     position: relative;
     background: #020617;
     border-radius: 12px;
     border: 2px solid var(--panel-border);
     overflow: hidden;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    height: 560px;
+    touch-action: none; /* Allows fluid touch panning & pinching without browser scroll hijack */
 }
 
 #game-canvas {
+    width: 100%;
+    height: 100%;
     display: block;
-    cursor: crosshair;
+    cursor: grab;
+    touch-action: none;
+}
+
+#game-canvas:active {
+    cursor: grabbing;
+}
+
+/* On-Screen Mobile Zoom & Reset Controls */
+.canvas-zoom-controls {
+    position: absolute;
+    bottom: 14px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 20;
+}
+
+.zoom-btn {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid var(--panel-border);
+    color: #fff;
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+    transition: all 0.15s;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+.zoom-btn:hover {
+    background: var(--accent-blue);
+    color: #000;
+    border-color: #38bdf8;
+    transform: scale(1.05);
+}
+
+.zoom-btn:active {
+    transform: scale(0.95);
 }
 
 /* Side Inspection Panel */
 .side-panel {
     width: 290px;
+    flex-shrink: 0;
     background: var(--panel-bg);
     border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
     border-radius: 12px;
     padding: 16px;
     display: flex;
@@ -455,16 +515,34 @@ body {
     background: var(--panel-bg);
     border: 1px solid var(--panel-border);
     border-radius: 12px;
-    padding: 12px 16px;
+    padding: 10px 14px;
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    min-width: 0;
 }
 
 #tower-hotbar {
     display: flex;
     gap: 8px;
+    overflow-x: auto;
+    max-width: 100%;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+    -webkit-overflow-scrolling: touch;
+    flex-shrink: 1;
+}
+
+#tower-hotbar::-webkit-scrollbar {
+    height: 4px;
+}
+#tower-hotbar::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 2px;
 }
 
 .tower-btn {
@@ -479,6 +557,7 @@ body {
     cursor: pointer;
     transition: all 0.15s;
     color: var(--text-primary);
+    flex-shrink: 0;
 }
 
 .tower-btn:hover {
@@ -531,7 +610,120 @@ body {
 .utility-controls {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+/* Mobile & Tablet Responsive Media Queries */
+@media (max-width: 1024px) {
+    body {
+        padding: 8px;
+    }
+
+    #app-container {
+        gap: 8px;
+    }
+
+    .main-stage {
+        flex-direction: column;
+    }
+
+    .side-panel {
+        width: 100%;
+        max-height: none;
+    }
+
+    .canvas-wrapper {
+        height: 440px;
+    }
+
+    .bottom-panel {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .utility-controls {
+        justify-content: space-between;
+        width: 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    body {
+        padding: 4px;
+    }
+
+    .game-header {
+        flex-direction: column;
+        padding: 8px 12px;
+        gap: 8px;
+        align-items: stretch;
+    }
+
+    .hud-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+    }
+
+    .hud-item {
+        padding: 4px 8px;
+    }
+
+    .hud-val {
+        font-size: 13px;
+    }
+
+    .level-nav-bar {
+        padding: 6px 10px;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    #level-selector-bar {
+        overflow-x: auto;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+    }
+
+    .level-pill {
+        padding: 4px 8px;
+        font-size: 10px;
+        white-space: nowrap;
+    }
+
+    .canvas-wrapper {
+        height: 320px;
+    }
+
+    .tower-btn {
+        padding: 4px 6px;
+        gap: 6px;
+    }
+
+    .tower-icon-box {
+        width: 28px;
+        height: 28px;
+    }
+
+    .tower-name {
+        font-size: 10px;
+    }
+
+    .tower-cost {
+        font-size: 10px;
+    }
+
+    .util-btn {
+        padding: 5px 8px;
+        font-size: 10px;
+    }
+
+    .speed-btn {
+        padding: 5px 8px;
+        font-size: 10px;
+    }
 }
 
 .speed-group {
