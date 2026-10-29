@@ -210,6 +210,21 @@ class GameApp {
         }
     }
 
+    loadLevel(levelNum) {
+        if (!this.wasm) return;
+        const res = this.wasm.game_load_level(levelNum);
+        if (res === 1) {
+            this.sound.playBuild();
+            this.ui.selectedPlacedTower = null;
+            this.ui.selectedTowerType = null;
+            this.ui.updateDetailPanel();
+            this.syncState();
+            this.renderer.addFloatingText(12, 7, `LEVEL ${levelNum} LOADED`, "#38bdf8");
+        } else {
+            this.sound.playError();
+        }
+    }
+
     reset() {
         if (!this.wasm) return;
         this.wasm.game_reset();
@@ -222,9 +237,9 @@ class GameApp {
     syncState() {
         if (!this.wasm) return;
 
-        // 1. Read Header (16 floats)
+        // 1. Read Header (20 floats)
         const headerPtr = this.wasm.get_header_ptr();
-        const header = new Float32Array(this.memory.buffer, headerPtr, 16);
+        const header = new Float32Array(this.memory.buffer, headerPtr, 20);
 
         this.state.gold = Math.round(header[0]);
         this.state.lives = Math.round(header[1]);
@@ -240,13 +255,43 @@ class GameApp {
         this.state.projectilesCount = Math.round(header[11]);
         this.state.eventsCount = Math.round(header[12]);
         this.state.pathCount = Math.round(header[13]);
+        this.state.currentLevel = Math.round(header[16]) || 1;
+        this.state.maxUnlockedLevel = Math.round(header[17]) || 1;
+        this.state.levelCompleted = header[18] > 0.5;
 
-        // 2. Read Path
+        // Unpack spawn coordinates
+        const spawnPacked = Math.round(header[19]);
+        const sx = Math.floor(spawnPacked / 100);
+        const sy = spawnPacked % 100;
+        this.state.spawn = { x: sx, y: sy };
+
+        // Goal is the last coordinate of the current path if available, or default
+        if (this.state.path && this.state.path.length > 0) {
+            this.state.goal = this.state.path[this.state.path.length - 1];
+        } else {
+            this.state.goal = { x: 23, y: 7 };
+        }
+
+        // Save unlock progress to localStorage
+        const savedMaxLevel = parseInt(localStorage.getItem('cyber_bastion_max_level') || '1', 10);
+        if (this.state.maxUnlockedLevel > savedMaxLevel) {
+            localStorage.setItem('cyber_bastion_max_level', this.state.maxUnlockedLevel.toString());
+            this.ui.showLevelUnlockedToast(this.state.maxUnlockedLevel);
+        }
+
+        // 2. Read Obstacles Buffer
+        const obsPtr = this.wasm.get_obstacles_ptr();
+        this.state.obstacles = new Float32Array(this.memory.buffer, obsPtr, 24 * 14);
+
+        // 3. Read Path
         const pathPtr = this.wasm.get_path_ptr();
         const pathRaw = new Float32Array(this.memory.buffer, pathPtr, this.state.pathCount * 2);
         this.state.path = [];
         for (let i = 0; i < this.state.pathCount; i++) {
             this.state.path.push({ x: pathRaw[i * 2], y: pathRaw[i * 2 + 1] });
+        }
+        if (this.state.path.length > 0) {
+            this.state.goal = this.state.path[this.state.path.length - 1];
         }
 
         // 3. Read Towers (12 floats each)

@@ -20,6 +20,7 @@ pub struct Grid {
     pub goal_y: usize,
     pub flow_field: [(i8, i8); GRID_WIDTH * GRID_HEIGHT],
     pub current_path: Vec<(usize, usize)>,
+    pub current_level: usize,
 }
 
 impl Grid {
@@ -34,10 +35,10 @@ impl Grid {
             goal_y: GRID_HEIGHT / 2,
             flow_field: [(0, 0); GRID_WIDTH * GRID_HEIGHT],
             current_path: Vec::new(),
+            current_level: 1,
         };
 
-        // Add a few decorative scenery obstacles on the borders that leave ample open field
-        grid.recalculate_flow_field();
+        grid.load_level(1);
         grid
     }
 
@@ -56,6 +57,114 @@ impl Grid {
         matches!(self.cells[self.idx(x, y)], CellState::Empty)
     }
 
+    pub fn load_level(&mut self, level: usize) {
+        self.current_level = level;
+        // Reset all cells to Empty
+        self.cells = [CellState::Empty; GRID_WIDTH * GRID_HEIGHT];
+
+        match level {
+            1 => {
+                // Level 1: "Frontier Canyon" - Open tactical arena
+                self.spawn_x = 0;
+                self.spawn_y = 7;
+                self.goal_x = 23;
+                self.goal_y = 7;
+
+                // A few decorative rock pillars that leave wide corridors
+                self.set_obstacle(6, 3);
+                self.set_obstacle(6, 10);
+                self.set_obstacle(17, 3);
+                self.set_obstacle(17, 10);
+            }
+            2 => {
+                // Level 2: "Circuit Labyrinth" - Serpentine S-Curve
+                // Path goes top -> right -> down -> left -> down -> right to goal!
+                self.spawn_x = 0;
+                self.spawn_y = 2;
+                self.goal_x = 23;
+                self.goal_y = 11;
+
+                // Top divider wall (y=4, x=0 to 19, opening at x=20..23)
+                for x in 0..19 {
+                    self.set_obstacle(x, 4);
+                }
+                // Bottom divider wall (y=9, x=5 to 23, opening at x=0..4)
+                for x in 5..24 {
+                    self.set_obstacle(x, 9);
+                }
+            }
+            3 => {
+                // Level 3: "Serpentine Slalom" - Vertical Zigzag
+                self.spawn_x = 0;
+                self.spawn_y = 1;
+                self.goal_x = 23;
+                self.goal_y = 12;
+
+                // Column 1 (x=6, y=0..10, opening at bottom y=11..13)
+                for y in 0..10 {
+                    self.set_obstacle(6, y);
+                }
+                // Column 2 (x=12, y=4..13, opening at top y=0..3)
+                for y in 4..14 {
+                    self.set_obstacle(12, y);
+                }
+                // Column 3 (x=18, y=0..10, opening at bottom y=11..13)
+                for y in 0..10 {
+                    self.set_obstacle(18, y);
+                }
+            }
+            4 => {
+                // Level 4: "Citadel Gauntlet" - Perimeter Spiral to Central Core!
+                self.spawn_x = 0;
+                self.spawn_y = 0;
+                self.goal_x = 12;
+                self.goal_y = 6;
+
+                // Spiral walls guiding enemies clockwise into center:
+                // Wall dividing upper loop from core
+                for x in 2..21 {
+                    self.set_obstacle(x, 2);
+                }
+                // Wall dividing right side
+                for y in 3..11 {
+                    self.set_obstacle(21, y);
+                }
+                // Wall dividing bottom
+                for x in 4..21 {
+                    self.set_obstacle(x, 11);
+                }
+                // Wall dividing left side loop
+                for y in 5..11 {
+                    self.set_obstacle(4, y);
+                }
+                // Core enclosure leaving entrance from right
+                for x in 7..14 {
+                    self.set_obstacle(x, 4);
+                    self.set_obstacle(x, 8);
+                }
+                self.set_obstacle(7, 5);
+                self.set_obstacle(7, 6);
+                self.set_obstacle(7, 7);
+            }
+            _ => {
+                // Default fallback to Level 1
+                self.spawn_x = 0;
+                self.spawn_y = 7;
+                self.goal_x = 23;
+                self.goal_y = 7;
+            }
+        }
+
+        self.recalculate_flow_field();
+    }
+
+    fn set_obstacle(&mut self, x: usize, y: usize) {
+        if self.is_valid(x, y) {
+            let idx = self.idx(x, y);
+            self.cells[idx] = CellState::Obstacle;
+        }
+    }
+
     pub fn can_place_tower(&mut self, x: usize, y: usize, active_walkers: &[(f32, f32)]) -> bool {
         if !self.is_valid(x, y) {
             return false;
@@ -64,7 +173,7 @@ impl Grid {
         if (x == self.spawn_x && y == self.spawn_y) || (x == self.goal_x && y == self.goal_y) {
             return false;
         }
-        // Cannot place if not empty
+        // Cannot place if not empty (e.g. already obstacle or tower)
         let idx = self.idx(x, y);
         if !matches!(self.cells[idx], CellState::Empty) {
             return false;
@@ -124,7 +233,6 @@ impl Grid {
                     let n_idx = self.idx(unx, uny);
 
                     if !visited[n_idx] {
-                        // Allow end goal even if temporarily checked
                         let passable = matches!(self.cells[n_idx], CellState::Empty) || (unx == end_x && uny == end_y);
                         if passable {
                             visited[n_idx] = true;
@@ -162,7 +270,6 @@ impl Grid {
 
                     if !visited[n_idx] && (matches!(self.cells[n_idx], CellState::Empty) || (unx == self.spawn_x && uny == self.spawn_y)) {
                         visited[n_idx] = true;
-                        // For a walker at (unx, uny), the step toward the goal is (cx, cy)
                         parent[n_idx] = Some((cx as i8 - unx as i8, cy as i8 - uny as i8));
                         queue.push_back((unx, uny));
                     }

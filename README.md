@@ -6,10 +6,14 @@ An action-packed, cross-platform Tower Defense strategy game featuring **real-ti
 
 ## 🎮 Key Features & Mechanics
 
-### 1. Dynamic Mazing & Pathfinding
-- Towers can be placed **anywhere on the battlefield/path**.
-- **Path Reachability Validation**: A BFS reachability validator guarantees that towers **cannot completely block off the enemy path**. If a placement would box in the exit or trap active units, the game visually flags it with `⛔ BLOCKED` and denies placement.
-- **Dynamic Energy Flow**: An animated neon energy line shows the real-time optimal pathing route through your tower maze as you build and modify it!
+### 1. Multi-Level Campaign & Dynamic Mazing
+- **Level Progression & Unlocking**:
+  - **Sector 1: Frontier Canyon** (Open Sandbox Arena): Wide open tactical plain for custom maze routing. Unlocked by default.
+  - **Sector 2: Circuit Labyrinth** (Double S-Curve Path): 3x longer serpentine canyon with dual industrial dividing barriers. Unlocked by beating **Wave 10** on Sector 1!
+  - **Sector 3: Serpentine Slalom** (Vertical Zigzag): Alternating vertical barrier pillars creating tight defensive chokepoints. Unlocked by beating **Wave 10** on Sector 2!
+  - **Sector 4: Citadel Gauntlet** (Perimeter Spiral to Center): Perimeter ring route that spirals inward to the central core. Unlocked by beating **Wave 10** on Sector 3!
+- **Dynamic Energy Flow Visualizer**: Real-time animated neon energy line shows the active optimal pathing through your maze.
+- **BFS Reachability Algorithm**: Towers can be placed anywhere along corridors and path tiles, but **cannot completely block off the path to the Core**.
 
 ### 2. Dual Enemy Archetypes & Diverse Variations
 Enemies come in two distinct behavioral archetypes, plus multi-phase Boss encounters:

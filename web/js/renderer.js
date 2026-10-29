@@ -50,102 +50,77 @@ class GameRenderer {
         // 1. Draw Arena Grid & Background
         this.drawBackground(ctx);
 
-        // 2. Draw Dynamic Flow Path (Energy Flow)
+        // 2. Draw Terrain Obstacles for current level
+        this.drawObstacles(ctx, gameState.obstacles);
+
+        // 3. Draw Dynamic Flow Path (Energy Flow)
         this.drawDynamicPath(ctx, gameState.path);
 
-        // 3. Draw Spawn Portal and Goal Nexus
-        this.drawPortals(ctx);
+        // 4. Draw Spawn Portal and Goal Nexus (Dynamic for each level!)
+        this.drawPortals(ctx, gameState.spawn, gameState.goal);
 
-        // 4. Draw Placed Towers
+        // 5. Draw Placed Towers
         this.drawTowers(ctx, gameState.towers, selectedPlacedTower);
 
-        // 5. Draw Range & Hover Preview
+        // 6. Draw Range & Hover Preview
         this.drawHoverPreview(ctx, hoverTile, selectedTowerType, gameState);
 
-        // 6. Draw Enemies (Walkers, Attackers, Bosses)
+        // 7. Draw Enemies (Walkers, Attackers, Bosses)
         this.drawEnemies(ctx, gameState.enemies);
 
-        // 7. Draw Projectiles
+        // 8. Draw Projectiles
         this.drawProjectiles(ctx, gameState.projectiles);
 
-        // 8. Draw Visual Events (Laser beams, lightning, repair beams)
+        // 9. Draw Visual Events (Laser beams, lightning, repair beams)
         this.drawVisualEvents(ctx, gameState.events);
 
-        // 9. Update and Draw Explosions and Particles
+        // 10. Update and Draw Explosions and Particles
         this.drawEffects(ctx, dt);
 
-        // 10. Draw Floating Combat Text
+        // 11. Draw Floating Combat Text
         this.drawFloatingTexts(ctx, dt);
     }
 
-    drawBackground(ctx) {
-        // Sci-Fi metallic grid floor
-        ctx.fillStyle = '#0b1120'; // Slate deep cyber background
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    drawObstacles(ctx, obstacles) {
+        if (!obstacles) return;
+        for (let y = 0; y < this.gridHeight; y++) {
+            for (let x = 0; x < this.gridWidth; x++) {
+                const idx = y * this.gridWidth + x;
+                if (obstacles[idx] > 0.5) {
+                    const px = x * this.cellSize;
+                    const py = y * this.cellSize;
 
-        // Grid lines
-        ctx.strokeStyle = 'rgba(51, 65, 85, 0.25)';
-        ctx.lineWidth = 1;
+                    // Metallic tech barrier block
+                    ctx.save();
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fillRect(px + 2, py + 2, this.cellSize - 4, this.cellSize - 4);
 
-        for (let x = 0; x <= this.gridWidth; x++) {
-            ctx.beginPath();
-            ctx.moveTo(x * this.cellSize, 0);
-            ctx.lineTo(x * this.cellSize, this.canvas.height);
-            ctx.stroke();
-        }
-        for (let y = 0; y <= this.gridHeight; y++) {
-            ctx.beginPath();
-            ctx.moveTo(0, y * this.cellSize);
-            ctx.lineTo(this.canvas.width, y * this.cellSize);
-            ctx.stroke();
-        }
+                    // Inner cyber core
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(px + 5, py + 5, this.cellSize - 10, this.cellSize - 10);
 
-        // Circuit board micro-dots
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
-        for (let x = 1; x < this.gridWidth; x += 2) {
-            for (let y = 1; y < this.gridHeight; y += 2) {
-                ctx.fillRect(x * this.cellSize - 1, y * this.cellSize - 1, 2, 2);
+                    // Glowing hazard edge
+                    ctx.strokeStyle = '#475569';
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(px + 2, py + 2, this.cellSize - 4, this.cellSize - 4);
+
+                    // Neon warning notch
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.fillRect(px + this.cellSize / 2 - 2, py + this.cellSize / 2 - 2, 4, 4);
+                    ctx.restore();
+                }
             }
         }
     }
 
-    drawDynamicPath(ctx, path) {
-        if (!path || path.length < 2) return;
-
-        this.pathDashOffset = (this.pathDashOffset - 0.7) % 24;
-
-        // Path glow underlay
-        ctx.save();
-        ctx.strokeStyle = 'rgba(16, 185, 129, 0.18)'; // Emerald energy flow
-        ctx.lineWidth = this.cellSize * 0.7;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(path[0].x * this.cellSize + this.cellSize / 2, path[0].y * this.cellSize + this.cellSize / 2);
-        for (let i = 1; i < path.length; i++) {
-            ctx.lineTo(path[i].x * this.cellSize + this.cellSize / 2, path[i].y * this.cellSize + this.cellSize / 2);
-        }
-        ctx.stroke();
-
-        // Animated neon flow line
-        ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([8, 12]);
-        ctx.lineDashOffset = this.pathDashOffset;
-        ctx.shadowColor = '#34d399';
-        ctx.shadowBlur = 8;
-        ctx.stroke();
-        ctx.restore();
-    }
-
-    drawPortals(ctx) {
+    drawPortals(ctx, spawn, goal) {
         const half = this.cellSize / 2;
+        const sx = (spawn ? spawn.x : 0) * this.cellSize + half;
+        const sy = (spawn ? spawn.y : 7) * this.cellSize + half;
 
-        // Spawn Portal (0, 7)
-        const sx = 0 * this.cellSize + half;
-        const sy = 7 * this.cellSize + half;
+        // Spawn Portal
         ctx.save();
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';
         ctx.beginPath();
         ctx.arc(sx, sy, 18, 0, Math.PI * 2);
         ctx.fill();
@@ -153,17 +128,17 @@ class GameRenderer {
         ctx.lineWidth = 2.5;
         ctx.stroke();
         ctx.fillStyle = '#fee2e2';
-        ctx.font = 'bold 10px monospace';
+        ctx.font = 'bold 9px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('SPAWN', sx, sy);
         ctx.restore();
 
-        // Goal Nexus (23, 7)
-        const gx = 23 * this.cellSize + half;
-        const gy = 7 * this.cellSize + half;
+        // Goal Nexus
+        const gx = (goal ? goal.x : 23) * this.cellSize + half;
+        const gy = (goal ? goal.y : 7) * this.cellSize + half;
         ctx.save();
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.3)';
         ctx.beginPath();
         ctx.arc(gx, gy, 18, 0, Math.PI * 2);
         ctx.fill();
@@ -171,7 +146,7 @@ class GameRenderer {
         ctx.lineWidth = 2.5;
         ctx.stroke();
         ctx.fillStyle = '#e0f2fe';
-        ctx.font = 'bold 10px monospace';
+        ctx.font = 'bold 9px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('CORE', gx, gy);

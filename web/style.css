@@ -151,6 +151,107 @@ body {
     cursor: not-allowed;
 }
 
+/* Level Navigation Bar */
+.level-nav-bar {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.level-nav-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--accent-blue);
+    letter-spacing: 0.5px;
+}
+
+#level-selector-bar {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+}
+
+.level-pill {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.level-pill:hover:not(.locked) {
+    background: #334155;
+    color: #fff;
+    border-color: var(--accent-blue);
+}
+
+.level-pill.active {
+    background: #0284c7;
+    color: #fff;
+    border-color: #38bdf8;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.level-pill.locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #0f172a;
+    border-color: #1e293b;
+}
+
+.level-pill .lvl-num {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+}
+
+.level-req-hint {
+    font-size: 11px;
+    color: var(--accent-gold);
+    font-weight: 600;
+}
+
+/* Level Unlock Toast */
+.level-unlock-toast {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    background: linear-gradient(135deg, #065f46, #047857);
+    border: 2px solid #10b981;
+    color: #fff;
+    padding: 14px 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(16, 185, 129, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 2000;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.level-unlock-toast.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.level-unlock-toast .toast-icon {
+    font-size: 28px;
+}
+
 /* Main Playing Area */
 .main-stage {
     display: flex;

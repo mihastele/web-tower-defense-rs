@@ -6,12 +6,14 @@ pub mod tower;
 pub mod wave;
 
 use game::Game;
+use grid::{CellState, GRID_HEIGHT, GRID_WIDTH};
 use tower::TowerType;
 
 static mut GAME_INSTANCE: Option<Game> = None;
 
-// Reusable export buffers to avoid any heap allocations across the WASM boundary
-static mut HEADER_BUFFER: [f32; 16] = [0.0; 16];
+// Reusable export buffers
+static mut HEADER_BUFFER: [f32; 20] = [0.0; 20];
+static mut OBSTACLES_BUFFER: [f32; GRID_WIDTH * GRID_HEIGHT] = [0.0; GRID_WIDTH * GRID_HEIGHT];
 static mut PATH_BUFFER: [f32; 512 * 2] = [0.0; 1024];
 static mut TOWERS_BUFFER: [f32; 256 * 12] = [0.0; 3072];
 static mut ENEMIES_BUFFER: [f32; 512 * 11] = [0.0; 5632];
@@ -33,11 +35,36 @@ pub extern "C" fn game_init() {
     unsafe {
         GAME_INSTANCE = Some(Game::new());
     }
+    sync_buffers();
 }
 
 #[no_mangle]
 pub extern "C" fn game_reset() {
     get_game().reset();
+    sync_buffers();
+}
+
+#[no_mangle]
+pub extern "C" fn game_load_level(level: i32) -> i32 {
+    if level < 1 || level > 4 {
+        return 0;
+    }
+    if get_game().load_level(level as usize) {
+        sync_buffers();
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn game_get_current_level() -> i32 {
+    get_game().current_level as i32
+}
+
+#[no_mangle]
+pub extern "C" fn game_get_max_unlocked_level() -> i32 {
+    get_game().max_unlocked_level as i32
 }
 
 #[no_mangle]
@@ -106,10 +133,42 @@ pub extern "C" fn game_add_gold(amount: i32) {
     get_game().gold += amount;
 }
 
+#[no_mangle]
+pub extern "C" fn game_set_lives(lives: i32) {
+    get_game().lives = lives;
+    get_game().max_lives = lives;
+}
+
+#[no_mangle]
+pub extern "C" fn game_spawn_enemy(variant: i32) {
+    let g = get_game();
+    let id = g.alloc_id();
+    let var = match variant {
+        0 => enemy::EnemyVariant::Scout,
+        1 => enemy::EnemyVariant::Armored,
+        2 => enemy::EnemyVariant::Phantom,
+        3 => enemy::EnemyVariant::Healer,
+        4 => enemy::EnemyVariant::Swarm,
+        5 => enemy::EnemyVariant::SiegeBrawler,
+        6 => enemy::EnemyVariant::ArtilleryBug,
+        7 => enemy::EnemyVariant::Bomber,
+        8 => enemy::EnemyVariant::EMPDisruptor,
+        9 => enemy::EnemyVariant::AcidSpitter,
+        10 => enemy::EnemyVariant::TitanColossus,
+        11 => enemy::EnemyVariant::Broodmother,
+        _ => enemy::EnemyVariant::AnnihilatorMech,
+    };
+    let sx = g.grid.spawn_x as f32 + 0.5;
+    let sy = g.grid.spawn_y as f32 + 0.5;
+    let enemy = enemy::Enemy::new(id, var, 1.0, sx, sy);
+    g.enemies.push(enemy);
+    sync_buffers();
+}
+
 fn sync_buffers() {
     let g = get_game();
     unsafe {
-        // Header
+        // Header (20 floats)
         HEADER_BUFFER[0] = g.gold as f32;
         HEADER_BUFFER[1] = g.lives as f32;
         HEADER_BUFFER[2] = g.max_lives as f32;
@@ -126,6 +185,18 @@ fn sync_buffers() {
         HEADER_BUFFER[13] = g.grid.current_path.len() as f32;
         HEADER_BUFFER[14] = g.total_enemies_killed as f32;
         HEADER_BUFFER[15] = g.total_damage_dealt;
+        HEADER_BUFFER[16] = g.current_level as f32;
+        HEADER_BUFFER[17] = g.max_unlocked_level as f32;
+        HEADER_BUFFER[18] = if g.level_completed { 1.0 } else { 0.0 };
+        HEADER_BUFFER[19] = (g.grid.spawn_x * 100 + g.grid.spawn_y) as f32;
+
+        // Obstacles
+        for y in 0..GRID_HEIGHT {
+            for x in 0..GRID_WIDTH {
+                let idx = y * GRID_WIDTH + x;
+                OBSTACLES_BUFFER[idx] = if matches!(g.grid.cells[idx], CellState::Obstacle) { 1.0 } else { 0.0 };
+            }
+        }
 
         // Path
         for (i, &(px, py)) in g.grid.current_path.iter().enumerate().take(512) {
@@ -190,10 +261,15 @@ fn sync_buffers() {
     }
 }
 
-// Pointers to memory
+// Memory pointers
 #[no_mangle]
 pub extern "C" fn get_header_ptr() -> *const f32 {
     std::ptr::addr_of!(HEADER_BUFFER) as *const f32
+}
+
+#[no_mangle]
+pub extern "C" fn get_obstacles_ptr() -> *const f32 {
+    std::ptr::addr_of!(OBSTACLES_BUFFER) as *const f32
 }
 
 #[no_mangle]

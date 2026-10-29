@@ -14,6 +14,13 @@ class UIController {
             { id: 7, name: 'Aegis Beacon', cost: 150, desc: 'Support pylon repairing nearby damaged towers.', key: '8' }
         ];
 
+        this.levels = [
+            { id: 1, name: 'Lvl 1: Frontier Canyon', desc: 'Open tactical arena' },
+            { id: 2, name: 'Lvl 2: Circuit Labyrinth', desc: 'Serpentine double S-curve path' },
+            { id: 3, name: 'Lvl 3: Serpentine Slalom', desc: 'Vertical zigzag chokepoints' },
+            { id: 4, name: 'Lvl 4: Citadel Gauntlet', desc: 'Perimeter spiral to central core' }
+        ];
+
         this.selectedTowerType = null;
         this.selectedPlacedTower = null;
         this.gameSpeed = 1.0;
@@ -22,8 +29,51 @@ class UIController {
     }
 
     init() {
+        this.buildLevelSelector();
         this.buildTowerHotbar();
         this.bindEvents();
+    }
+
+    buildLevelSelector() {
+        const container = document.getElementById('level-selector-bar');
+        if (!container) return;
+        container.innerHTML = '';
+
+        this.levels.forEach(lvl => {
+            const btn = document.createElement('button');
+            btn.className = `level-pill ${lvl.id === 1 ? 'active' : ''}`;
+            btn.id = `btn-lvl-${lvl.id}`;
+            btn.title = lvl.desc;
+            btn.innerHTML = `<span class="lvl-num">${lvl.id}</span> ${lvl.name}`;
+
+            btn.addEventListener('click', () => {
+                if (btn.classList.contains('locked')) {
+                    alert(`🔒 Level ${lvl.id} is locked! Complete Wave 10 on Level ${lvl.id - 1} to unlock.`);
+                    return;
+                }
+                this.game.loadLevel(lvl.id);
+            });
+
+            container.appendChild(btn);
+        });
+    }
+
+    showLevelUnlockedToast(unlockedLevel) {
+        const toast = document.createElement('div');
+        toast.className = 'level-unlock-toast';
+        toast.innerHTML = `
+            <div class="toast-icon">🎉</div>
+            <div>
+                <strong>LEVEL ${unlockedLevel} UNLOCKED!</strong>
+                <p>New challenging path and tactical map now available!</p>
+            </div>
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.classList.add('visible'), 50);
+        setTimeout(() => {
+            toast.classList.remove('visible');
+            setTimeout(() => toast.remove(), 500);
+        }, 4000);
     }
 
     buildTowerHotbar() {
@@ -174,6 +224,21 @@ class UIController {
         document.getElementById('hud-lives').textContent = `${state.lives}/${state.maxLives}`;
         document.getElementById('hud-score').textContent = state.score;
         document.getElementById('hud-wave').textContent = state.wave;
+
+        // Update Level pills
+        this.levels.forEach(lvl => {
+            const btn = document.getElementById(`btn-lvl-${lvl.id}`);
+            if (btn) {
+                const isLocked = lvl.id > state.maxUnlockedLevel;
+                btn.classList.toggle('active', lvl.id === state.currentLevel);
+                btn.classList.toggle('locked', isLocked);
+                if (isLocked) {
+                    btn.innerHTML = `<span class="lvl-num">🔒</span> ${lvl.name}`;
+                } else {
+                    btn.innerHTML = `<span class="lvl-num">${lvl.id}</span> ${lvl.name}`;
+                }
+            }
+        });
 
         // Wave status / countdown
         const waveStatusEl = document.getElementById('wave-status-text');

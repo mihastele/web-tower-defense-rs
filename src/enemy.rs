@@ -60,16 +60,16 @@ impl EnemyVariant {
             EnemyVariant::Swarm => (45.0, 2.4, 0.0, 8, 0.0),
 
             // Attackers
-            EnemyVariant::SiegeBrawler => (280.0, 1.2, 45.0, 28, 0.9),
-            EnemyVariant::ArtilleryBug => (170.0, 1.1, 35.0, 26, 3.2),
-            EnemyVariant::Bomber => (110.0, 2.1, 150.0, 22, 0.8), // Suicide boom
-            EnemyVariant::EMPDisruptor => (220.0, 1.2, 10.0, 30, 2.8),
-            EnemyVariant::AcidSpitter => (190.0, 1.3, 25.0, 24, 2.5),
+            EnemyVariant::SiegeBrawler => (280.0, 1.2, 45.0, 28, 1.4),
+            EnemyVariant::ArtilleryBug => (170.0, 1.1, 35.0, 26, 3.8),
+            EnemyVariant::Bomber => (110.0, 2.1, 160.0, 22, 1.3), // Suicide boom
+            EnemyVariant::EMPDisruptor => (220.0, 1.2, 15.0, 30, 3.2),
+            EnemyVariant::AcidSpitter => (190.0, 1.3, 28.0, 24, 3.2),
 
             // Bosses
-            EnemyVariant::TitanColossus => (2400.0, 0.7, 80.0, 180, 1.2),
-            EnemyVariant::Broodmother => (2000.0, 0.8, 55.0, 190, 2.6),
-            EnemyVariant::AnnihilatorMech => (3200.0, 0.65, 95.0, 250, 3.0),
+            EnemyVariant::TitanColossus => (2400.0, 0.7, 85.0, 180, 2.0),
+            EnemyVariant::Broodmother => (2000.0, 0.8, 60.0, 190, 3.2),
+            EnemyVariant::AnnihilatorMech => (3200.0, 0.65, 100.0, 250, 3.8),
         }
     }
 }
@@ -103,7 +103,7 @@ pub struct Enemy {
 }
 
 impl Enemy {
-    pub fn new(id: usize, variant: EnemyVariant, wave_multiplier: f32) -> Self {
+    pub fn new(id: usize, variant: EnemyVariant, wave_multiplier: f32, spawn_x: f32, spawn_y: f32) -> Self {
         let (base_hp, speed, atk, gold, atk_range) = variant.base_stats();
         let scaled_hp = base_hp * wave_multiplier;
         let scaled_atk = atk * (1.0 + (wave_multiplier - 1.0) * 0.4);
@@ -113,8 +113,8 @@ impl Enemy {
             id,
             variant,
             category,
-            x: 0.5,
-            y: (crate::grid::GRID_HEIGHT / 2) as f32 + 0.5,
+            x: spawn_x,
+            y: spawn_y,
             hp: scaled_hp,
             max_hp: scaled_hp,
             base_speed: speed,
