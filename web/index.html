@@ -100,6 +100,30 @@
         <main class="main-stage">
             <div class="canvas-wrapper">
                 <canvas id="game-canvas"></canvas>
+
+                <!-- Epic Boss Encounter Health Bar Overlay -->
+                <div id="boss-hud-bar" class="boss-hud-overlay hidden">
+                    <div class="boss-hud-card">
+                        <div class="boss-hud-header">
+                            <span class="boss-hud-icon">☠️</span>
+                            <div class="boss-hud-meta">
+                                <div class="boss-hud-name" id="boss-hud-name">TITAN COLOSSUS</div>
+                                <div class="boss-hud-affix" id="boss-hud-affix">★ SUPREME TITAN CLASS</div>
+                            </div>
+                            <div class="boss-hud-count" id="boss-hud-count"></div>
+                        </div>
+                        <div class="boss-hud-bars">
+                            <div class="boss-shield-bar hidden" id="boss-hud-shield-container">
+                                <div class="boss-shield-fill" id="boss-hud-shield-fill"></div>
+                            </div>
+                            <div class="boss-hp-bar">
+                                <div class="boss-hp-fill" id="boss-hud-hp-fill"></div>
+                                <span class="boss-hp-text" id="boss-hud-hp-text">100%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- On-Screen Pan & Zoom Controls for Mobile & Desktop -->
                 <div class="canvas-zoom-controls">
                     <button id="btn-zoom-in" class="zoom-btn" title="Zoom In">+</button>

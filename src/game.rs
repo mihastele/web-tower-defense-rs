@@ -120,7 +120,7 @@ impl Game {
     }
 
     pub fn load_level(&mut self, level: usize) -> bool {
-        let lvl = level.clamp(1, 5);
+        let lvl = level.clamp(1, 6);
         if lvl > self.max_unlocked_level {
             return false;
         }
@@ -319,13 +319,15 @@ impl Game {
             self.wave_manager.is_wave_active = false;
             self.wave_manager.time_until_next_wave = 15.0; // Break between waves
             let wave_bonus = 60 + self.wave_manager.current_wave * 15;
-            self.gold += wave_bonus as i32;
+            // Compound interest on unspent gold reserves (3%, capped at 150 gold)
+            let interest = ((self.gold as f32 * 0.03).min(150.0)).max(0.0) as i32;
+            self.gold += (wave_bonus as i32) + interest;
             self.score += self.wave_manager.current_wave * 250;
 
-            // Check Level Unlocking: Completing Wave 10 unlocks next level (up to 5)!
+            // Check Level Unlocking: Completing Wave 10 unlocks next level (up to 6)!
             if self.wave_manager.current_wave >= 10 {
                 self.level_completed = true;
-                if self.current_level >= self.max_unlocked_level && self.current_level < 5 {
+                if self.current_level >= self.max_unlocked_level && self.current_level < 6 {
                     self.max_unlocked_level = self.current_level + 1;
                     self.visual_events.push(VisualEvent {
                         event_type: 6, // Text notification
@@ -1051,6 +1053,18 @@ impl Game {
                 earned_gold += enemy.gold_bounty as i32;
                 earned_score += enemy.score_value;
                 self.total_enemies_killed += 1;
+
+                if enemy.category == EnemyCategory::Boss {
+                    // Massive explosion event on Boss death
+                    self.visual_events.push(VisualEvent {
+                        event_type: 0,
+                        x: enemy.x,
+                        y: enemy.y,
+                        target_x: 0.0,
+                        target_y: 0.0,
+                        value: 5.0,
+                    });
+                }
             }
         }
         self.gold += earned_gold;

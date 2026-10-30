@@ -46,7 +46,7 @@ pub extern "C" fn game_reset() {
 
 #[no_mangle]
 pub extern "C" fn game_load_level(level: i32) -> i32 {
-    if level < 1 || level > 5 {
+    if level < 1 || level > 6 {
         return 0;
     }
     if get_game().load_level(level as usize) {

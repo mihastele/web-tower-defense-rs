@@ -19,7 +19,8 @@ class UIController {
             { id: 2, name: 'Lvl 2: Circuit Labyrinth', desc: 'Serpentine double S-curve path' },
             { id: 3, name: 'Lvl 3: Serpentine Slalom', desc: 'Vertical zigzag chokepoints' },
             { id: 4, name: 'Lvl 4: Citadel Gauntlet', desc: 'Perimeter spiral to central core' },
-            { id: 5, name: 'Lvl 5: Omega Core', desc: 'The ultimate abyssal bastion with bifurcating energy channels' }
+            { id: 5, name: 'Lvl 5: Omega Core', desc: 'The ultimate abyssal bastion with bifurcating energy channels' },
+            { id: 6, name: 'Lvl 6: The Singularity Rift', desc: 'Gravitational event horizon arena with orbital baffles' }
         ];
 
         this.selectedTowerType = null;
@@ -297,6 +298,53 @@ class UIController {
             }
         }
 
+        // Live Boss Encounter Health Bar Overlay
+        const bossBar = document.getElementById('boss-hud-bar');
+        if (bossBar) {
+            const bosses = state.enemies ? state.enemies.filter(e => e.category === 2 && e.hp > 0) : [];
+            if (bosses.length > 0) {
+                bossBar.classList.remove('hidden');
+                const boss = bosses[0];
+                const bossNames = {
+                    10: 'TITAN COLOSSUS',
+                    11: 'BROODMOTHER QUEEN',
+                    12: 'ANNIHILATOR DREADNOUGHT'
+                };
+                const nameEl = document.getElementById('boss-hud-name');
+                const affixEl = document.getElementById('boss-hud-affix');
+                const countEl = document.getElementById('boss-hud-count');
+                const hpFill = document.getElementById('boss-hud-hp-fill');
+                const hpText = document.getElementById('boss-hud-hp-text');
+                const shieldCont = document.getElementById('boss-hud-shield-container');
+                const shieldFill = document.getElementById('boss-hud-shield-fill');
+
+                if (nameEl) nameEl.textContent = bossNames[boss.variant] || 'SUPREME BOSS';
+                if (affixEl) {
+                    const affixMap = ['', '🛡️ KINETIC BARRIER MUTATION', '⚡ ENRAGED BERSERKER', '💚 REGENERATIVE NANO-SWARM', '⛓️ REINFORCED JUGGERNAUT PLATING'];
+                    affixEl.textContent = boss.eliteAffix > 0 ? affixMap[boss.eliteAffix] : '★ SUPREME TITAN CLASS';
+                }
+                if (countEl) {
+                    countEl.textContent = bosses.length > 1 ? `+${bosses.length - 1} OTHER BOSSES` : '';
+                }
+
+                const hpPct = Math.min(100, Math.max(0, (boss.hp / boss.maxHp) * 100));
+                if (hpFill) hpFill.style.width = `${hpPct}%`;
+                if (hpText) hpText.textContent = `${Math.round(boss.hp)} / ${Math.round(boss.maxHp)} (${Math.round(hpPct)}%)`;
+
+                if (shieldCont && shieldFill) {
+                    if (boss.maxShieldHp > 0 && boss.shieldHp > 0) {
+                        shieldCont.classList.remove('hidden');
+                        const sPct = Math.min(100, Math.max(0, (boss.shieldHp / boss.maxShieldHp) * 100));
+                        shieldFill.style.width = `${sPct}%`;
+                    } else {
+                        shieldCont.classList.add('hidden');
+                    }
+                }
+            } else {
+                bossBar.classList.add('hidden');
+            }
+        }
+
         // Update Level pills
         this.levels.forEach(lvl => {
             const btn = document.getElementById(`btn-lvl-${lvl.id}`);
@@ -561,6 +609,7 @@ class UIController {
             <div class="bestiary-tabs">
                 <button class="tab-btn active" id="tab-towers">TOWERS & UPGRADES (24 Sprites)</button>
                 <button class="tab-btn" id="tab-enemies">ENEMIES & BOSSES (13 Units)</button>
+                <button class="tab-btn" id="tab-protocols">PROTOCOLS & CATACLYSMS</button>
             </div>
             <div id="bestiary-tab-content"></div>
         `;
@@ -575,6 +624,12 @@ class UIController {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             e.target.classList.add('active');
             this.showBestiaryEnemies();
+        });
+
+        document.getElementById('tab-protocols').addEventListener('click', (e) => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            this.showBestiaryProtocols();
         });
 
         this.showBestiaryTowers();
@@ -668,6 +723,98 @@ class UIController {
                 }
             }, 50);
         });
+    }
+
+    showBestiaryProtocols() {
+        const target = document.getElementById('bestiary-tab-content');
+        target.innerHTML = `
+            <div class="protocols-container">
+                <div class="protocol-section">
+                    <h3>🌊 Exponential Cataclysm Surges</h3>
+                    <p>After the first <strong>Titan Colossus</strong> on <strong>Wave 5</strong>, hostiles undergo an exponential evolution every 4 waves (<strong>Waves 9, 13, 17, 21, 25...</strong>):</p>
+                    <div class="protocol-grid">
+                        <div class="protocol-item">
+                            <strong>Wave 9 (Surge I)</strong>
+                            <span>+175% Threat Multiplier. Titan Colossus returns leading a heavy siege vanguard.</span>
+                        </div>
+                        <div class="protocol-item">
+                            <strong>Wave 13 (Surge II)</strong>
+                            <span>+306% Threat Multiplier. Dual-Boss Cataclysm: Titan Colossus AND Broodmother Queen!</span>
+                        </div>
+                        <div class="protocol-item">
+                            <strong>Wave 17 (Surge III)</strong>
+                            <span>+536% Threat Multiplier. Annihilator Dreadnought Mech AND Titan Colossus siege squad.</span>
+                        </div>
+                        <div class="protocol-item">
+                            <strong>Wave 21+ (Surge IV+)</strong>
+                            <span>+938% Threat Multiplier. Triple Boss Apocalypse Trinity with escalating multi-boss deployments!</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="protocol-section">
+                    <h3>⚡ Commander Tactical Superweapons</h3>
+                    <div class="protocol-grid">
+                        <div class="protocol-item">
+                            <strong>[Q] Orbital EMP Blast</strong>
+                            <span>35s Cooldown. Discharges a map-wide electromagnetic pulse that stuns all hostiles for 3.5s and immediately clears EMP stuns from friendly towers.</span>
+                        </div>
+                        <div class="protocol-item">
+                            <strong>[E] Kinetic Orbital Strike</strong>
+                            <span>45s Cooldown. Fires high-explosive kinetic orbital artillery onto cursor coordinates, inflicting 950 area damage with massive impact shockwaves.</span>
+                        </div>
+                        <div class="protocol-item">
+                            <strong>[F] Bastion Overdrive</strong>
+                            <span>48s Cooldown. Emergency nanite surge: instantly repairs 35% max HP to all placed towers and grants 2x fire rate (+35% damage) for 8 seconds.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="protocol-section">
+                    <h3>🧬 Hostile Elite Mutations & Affixes</h3>
+                    <div class="protocol-grid">
+                        <div class="protocol-item">
+                            <strong>🛡️ Kinetic Shield Barrier</strong>
+                            <span>Generates a protective cyan energy bubble absorbing up to 45% of maximum HP before hull damage occurs.</span>
+                        </div>
+                        <div class="protocol-item">
+                            <strong>⚡ Berserk Frenzy</strong>
+                            <span>Enraged fiery aura providing +30% movement speed and 35% faster attack rate against blocking towers.</span>
+                        </div>
+                        <div class="protocol-item">
+                            <strong>💚 Regenerator Nanites</strong>
+                            <span>Bio-nanite regenerative field constantly healing 3% of maximum HP per second.</span>
+                        </div>
+                        <div class="protocol-item">
+                            <strong>⛓️ Juggernaut Plating</strong>
+                            <span>Reinforced heavy steel alloy granting 35% flat damage resistance against all non-laser physical weapons.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="protocol-section">
+                    <h3>🎯 Dynamic Targeting Priorities</h3>
+                    <div class="protocol-grid">
+                        <div class="protocol-item">
+                            <strong>FIRST</strong>
+                            <span>Targets the hostile furthest along the path closest to the Core.</span>
+                        </div>
+                        <div class="protocol-item">
+                            <strong>STRONGEST</strong>
+                            <span>Focuses highest current HP (essential for Snipers & Lasers melting Titans and Bosses!).</span>
+                        </div>
+                        <div class="protocol-item">
+                            <strong>WEAKEST</strong>
+                            <span>Prioritizes low-health runners to quickly clear incoming swarms.</span>
+                        </div>
+                        <div class="protocol-item">
+                            <strong>CLOSEST</strong>
+                            <span>Engages the nearest hostile to the tower.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 }
 

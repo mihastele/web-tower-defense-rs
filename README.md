@@ -13,6 +13,7 @@ An action-packed, cross-platform Tower Defense strategy game featuring **real-ti
   - **Sector 3: Serpentine Slalom** (Vertical Zigzag): Alternating vertical barrier pillars creating tight defensive chokepoints. Unlocked by beating **Wave 10** on Sector 2!
   - **Sector 4: Citadel Gauntlet** (Perimeter Spiral to Center): Perimeter ring route that spirals inward to the central core. Unlocked by beating **Wave 10** on Sector 3!
   - **Sector 5: Omega Core** (The Abyssal Crucible): Symmetrical bifurcating energy baffles creating twin tactical arenas. Unlocked by beating **Wave 10** on Sector 4!
+  - **Sector 6: The Singularity Rift** (Gravitational Event Horizon): Central unpassable event horizon void surrounded by orbital accelerator baffles. Unlocked by beating **Wave 10** on Sector 5!
 - **Dynamic Energy Flow Visualizer**: Real-time animated neon energy line shows the active optimal pathing through your maze.
 - **BFS Reachability Algorithm**: Towers can be placed anywhere along corridors and path tiles, but **cannot completely block off the path to the Core**.
 
@@ -75,7 +76,25 @@ Every tower features real-time targeting priority configuration (Hotkey: `T` or 
 
 ---
 
-### 5. Arsenal of 8 Towers & 3 Upgrade Tiers (24 Unique Sprites)
+### 5. Live Boss Health Bar Overlay & Encounter Tracking
+- **Tactical Boss HUD**: Whenever a Titan Colossus, Broodmother Queen, or Annihilator Dreadnought enters the arena, an ominous boss encounter health bar smoothly slides into view at the top of the screen.
+- **Real-Time Combat Metrics**: Displays the active boss name, elite affix badge, simultaneous multi-boss counter (e.g. `[1/2 BOSSES]`), layered cyan kinetic shield bar, and gradient red/crimson HP pool with exact numeric readouts.
+
+---
+
+### 6. Compound Interest Economy & Treasury Reserve
+- **Wave Treasury Yield**: In addition to standard wave clear bounties and early call bonuses, commanders earn **3% compound interest** on all unspent gold reserves at the end of every wave (capped at 150 gold per wave).
+- **Strategic Saving vs. Reinvestment**: Balancing early aggressive spending on maze fortifications with building a gold treasury allows commanders to fund critical late-wave Tier 3 orbital upgrades and emergency repairs during Cataclysm Surges.
+
+---
+
+### 7. In-Game Bestiary Protocols & Cataclysms Field Manual
+- **Tactical Database**: The Bestiary now includes a comprehensive 3rd tab: **"PROTOCOLS & CATACLYSMS"**.
+- **Interactive Guide**: Outlines exponential Cataclysm Surge milestones, Commander Superweapon deployment strategies, Elite mutation counters, and dynamic tower targeting protocols.
+
+---
+
+### 8. Arsenal of 8 Towers & 3 Upgrade Tiers (24 Unique Sprites)
 Every tower features 3 distinct visual tiers (base, turret barrels, glowing energy coils, armor plates):
 
 1. **Gatling Turret**: High rate of fire, rapid physical damage.

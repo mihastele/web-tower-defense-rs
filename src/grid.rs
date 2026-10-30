@@ -175,6 +175,38 @@ impl Grid {
                     self.set_obstacle(18, y);
                 }
             }
+            6 => {
+                // Level 6: "The Singularity Rift" - Gravitational event horizon arena
+                self.spawn_x = 0;
+                self.spawn_y = 1;
+                self.goal_x = 23;
+                self.goal_y = 12;
+
+                // Central Singularity Void Hazard (unpassable event horizon)
+                for x in 10..=13 {
+                    for y in 5..=8 {
+                        self.set_obstacle(x, y);
+                    }
+                }
+
+                // Orbital Accelerator Baffles:
+                // Upper left pylon barrier
+                for x in 3..=8 {
+                    self.set_obstacle(x, 3);
+                }
+                // Lower left pylon barrier
+                for y in 6..=11 {
+                    self.set_obstacle(5, y);
+                }
+                // Upper right pylon barrier
+                for y in 2..=7 {
+                    self.set_obstacle(18, y);
+                }
+                // Lower right pylon barrier
+                for x in 15..=20 {
+                    self.set_obstacle(x, 10);
+                }
+            }
             _ => {
                 // Default fallback to Level 1
                 self.spawn_x = 0;
