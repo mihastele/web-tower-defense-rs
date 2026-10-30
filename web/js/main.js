@@ -130,13 +130,24 @@ class GameApp {
 
             // Case A: Placing a new tower
             if (this.ui.selectedTowerType !== null) {
+                // If user clicks on an existing tower, switch to inspecting that tower instead
+                const clickedTower = this.state.towers.find(t => t.gx === gx && t.gy === gy);
+                if (clickedTower) {
+                    this.ui.selectPlacedTower(clickedTower);
+                    return;
+                }
+
                 const res = this.wasm.game_place_tower(gx, gy, this.ui.selectedTowerType);
                 if (res > 0) {
                     this.sound.playBuild();
                     this.renderer.addFloatingText(gx + 0.5, gy + 0.5, "BUILT!", "#10b981");
                     this.syncState();
-                    const placed = this.state.towers.find(t => t.id === res);
-                    if (placed) this.ui.selectPlacedTower(placed);
+                    // Keep selectedTowerType active for continuous maze/line building!
+                    // Check if player still has enough gold for another one
+                    const towerInfo = this.ui.towerTypes[this.ui.selectedTowerType];
+                    if (towerInfo && this.state.gold < towerInfo.cost) {
+                        this.renderer.addFloatingText(gx + 0.5, gy - 0.2, "LOW GOLD", "#fbbf24");
+                    }
                 } else if (res === -1) {
                     this.sound.playError();
                     this.renderer.addFloatingText(gx + 0.5, gy + 0.5, "PATH BLOCKED!", "#ef4444");
@@ -160,6 +171,7 @@ class GameApp {
         // --- MOUSE CONTROLS ---
         let isMousePanning = false;
         let lastMouseX = 0, lastMouseY = 0;
+        let mouseDownX = 0, mouseDownY = 0;
         let mouseMoved = false;
 
         canvas.addEventListener('mousemove', (e) => {
@@ -170,7 +182,9 @@ class GameApp {
             if (isMousePanning) {
                 const dx = e.clientX - lastMouseX;
                 const dy = e.clientY - lastMouseY;
-                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) mouseMoved = true;
+                if (Math.hypot(e.clientX - mouseDownX, e.clientY - mouseDownY) > 5) {
+                    mouseMoved = true;
+                }
                 this.renderer.camera.x += dx;
                 this.renderer.camera.y += dy;
                 lastMouseX = e.clientX;
@@ -181,12 +195,16 @@ class GameApp {
         });
 
         canvas.addEventListener('mousedown', (e) => {
+            // ALWAYS reset mouseMoved on any mouse down
+            mouseMoved = false;
+            mouseDownX = e.clientX;
+            mouseDownY = e.clientY;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+
             // Drag on right-click, middle click, or left-click without selected tower
             if (e.button === 1 || e.button === 2 || (e.button === 0 && this.ui.selectedTowerType === null)) {
                 isMousePanning = true;
-                mouseMoved = false;
-                lastMouseX = e.clientX;
-                lastMouseY = e.clientY;
             }
         });
 
@@ -201,13 +219,14 @@ class GameApp {
         });
 
         canvas.addEventListener('click', (e) => {
-            if (mouseMoved) return; // Was a pan drag, not a tap
+            if (mouseMoved) return; // Was a pan drag, not a click
             const rect = canvas.getBoundingClientRect();
             const sx = e.clientX - rect.left;
             const sy = e.clientY - rect.top;
             const world = this.renderer.screenToWorld(sx, sy);
             if (world.gx >= 0 && world.gx < this.renderer.gridWidth && world.gy >= 0 && world.gy < this.renderer.gridHeight) {
                 handleActionAt(world.gx, world.gy);
+                updateHoverFromScreen(sx, sy);
             }
         });
 
@@ -220,7 +239,22 @@ class GameApp {
             this.renderer.zoomAt(factor, sx, sy);
         }, { passive: false });
 
-        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            // Right-click cancels build placement mode or deselects placed tower
+            if (this.ui.selectedTowerType !== null) {
+                this.ui.selectedTowerType = null;
+                document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('active'));
+                this.ui.updateDetailPanel();
+                if (this.sound) this.sound.playCancel();
+                this.renderer.addFloatingText(12, 7, "BUILD CANCELLED", "#94a3b8");
+                this.hoverTile = null;
+            } else if (this.ui.selectedPlacedTower !== null) {
+                this.ui.selectedPlacedTower = null;
+                this.ui.updateDetailPanel();
+                if (this.sound) this.sound.playCancel();
+            }
+        });
 
         // --- TOUCH & MOBILE CONTROLS (Pan with 1 thumb, pinch to zoom with 2) ---
         let lastTouchDist = 0;
@@ -456,9 +490,9 @@ class GameApp {
     syncState() {
         if (!this.wasm) return;
 
-        // 1. Read Header (24 floats)
+        // 1. Read Header (28 floats)
         const headerPtr = this.wasm.get_header_ptr();
-        const header = new Float32Array(this.memory.buffer, headerPtr, 24);
+        const header = new Float32Array(this.memory.buffer, headerPtr, 28);
 
         this.state.gold = Math.round(header[0]);
         this.state.lives = Math.round(header[1]);
@@ -484,6 +518,22 @@ class GameApp {
         this.state.abilities.strikeCooldown = header[21];
         this.state.abilities.overdriveCooldown = header[22];
         this.state.abilities.overdriveActive = header[23] > 0.5;
+
+        // Combo system state
+        this.state.comboKills = Math.round(header[24]) || 0;
+        this.state.comboMultiplier = header[25] || 1.0;
+        this.state.comboTimer = header[26] || 0.0;
+        this.state.hazardsCount = Math.round(header[27]) || 0;
+
+        // Combo streak chime
+        if (this.state.comboKills > 0 && this.state.comboKills !== this.lastComboKills) {
+            this.lastComboKills = this.state.comboKills;
+            if (this.sound && this.state.comboKills >= 3) {
+                this.sound.playComboChime(this.state.comboKills);
+            }
+        } else if (this.state.comboKills === 0) {
+            this.lastComboKills = 0;
+        }
 
         // Check surge wave warning trigger (waves 9, 13, 17, 21, ...)
         if (this.state.isWaveActive && this.state.wave > 5 && ((this.state.wave - 5) % 4 === 0) && this.state.wave !== this.state.lastSurgeAlertWave) {
@@ -612,6 +662,33 @@ class GameApp {
             if (ev.type === 0) this.sound.playExplosion(ev.value);
             else if (ev.type === 1) this.sound.playLaser();
             else if (ev.type === 2) this.sound.playTesla();
+            else if (ev.type === 3) this.sound.playEMP();
+            else if (ev.type === 7) {
+                this.sound.playThermalShock();
+                this.renderer.addFloatingText(ev.x, ev.y, `⚡ THERMAL SHOCK! +${Math.round(ev.value)}`, '#38bdf8');
+            } else if (ev.type === 8) {
+                this.sound.playCryo();
+                this.renderer.addFloatingText(ev.x, ev.y, `❄️ GLACIAL NOVA!`, '#67e8f9');
+            } else if (ev.type === 9) {
+                this.sound.playCluster();
+            }
+        }
+
+        // 7. Read Ground Hazards (4 floats each)
+        if (this.wasm.get_hazards_ptr && this.state.hazardsCount > 0) {
+            const hazPtr = this.wasm.get_hazards_ptr();
+            const hazRaw = new Float32Array(this.memory.buffer, hazPtr, this.state.hazardsCount * 4);
+            this.state.hazards = [];
+            for (let i = 0; i < this.state.hazardsCount; i++) {
+                this.state.hazards.push({
+                    x: hazRaw[i * 4],
+                    y: hazRaw[i * 4 + 1],
+                    radius: hazRaw[i * 4 + 2],
+                    type: Math.round(hazRaw[i * 4 + 3])
+                });
+            }
+        } else {
+            this.state.hazards = [];
         }
 
         // If a tower was selected, refresh its reference

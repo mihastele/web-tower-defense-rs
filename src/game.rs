@@ -44,8 +44,18 @@ impl CommanderAbilities {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct GroundHazard {
+    pub x: f32,
+    pub y: f32,
+    pub radius: f32,
+    pub dps: f32,
+    pub duration: f32,
+    pub hazard_type: u8, // 0: Napalm fire, 1: Glacial frost
+}
+
 pub struct VisualEvent {
-    pub event_type: u8, // 0: explosion/impact, 1: laser, 2: lightning, 3: emp_pulse, 4: heal_aura, 5: tower_repair, 6: text
+    pub event_type: u8, // 0: explosion/impact, 1: laser, 2: lightning, 3: emp_pulse, 4: heal_aura, 5: tower_repair, 6: text, 7: thermal_shock, 8: glacial_nova, 9: cluster_burst
     pub x: f32,
     pub y: f32,
     pub target_x: f32,
@@ -60,6 +70,7 @@ pub struct Game {
     pub projectiles: Vec<Projectile>,
     pub wave_manager: WaveManager,
     pub abilities: CommanderAbilities,
+    pub ground_hazards: Vec<GroundHazard>,
 
     pub gold: i32,
     pub lives: i32,
@@ -67,6 +78,10 @@ pub struct Game {
     pub score: u32,
     pub game_over: bool,
     pub victory: bool,
+
+    pub combo_kills: u32,
+    pub combo_timer: f32,
+    pub combo_multiplier: f32,
 
     pub current_level: usize,
     pub max_unlocked_level: usize,
@@ -91,12 +106,16 @@ impl Game {
             projectiles: Vec::new(),
             wave_manager: WaveManager::new(),
             abilities: CommanderAbilities::new(),
+            ground_hazards: Vec::new(),
             gold: 450,
             lives: 20,
             max_lives: 20,
             score: 0,
             game_over: false,
             victory: false,
+            combo_kills: 0,
+            combo_timer: 0.0,
+            combo_multiplier: 1.0,
             current_level: 1,
             max_unlocked_level: 1,
             level_completed: false,
@@ -130,6 +149,10 @@ impl Game {
         self.towers.clear();
         self.enemies.clear();
         self.projectiles.clear();
+        self.ground_hazards.clear();
+        self.combo_kills = 0;
+        self.combo_timer = 0.0;
+        self.combo_multiplier = 1.0;
         self.wave_manager = WaveManager::new();
         self.abilities = CommanderAbilities::new();
         self.gold = 450 + (lvl as i32 - 1) * 75;
@@ -150,7 +173,7 @@ impl Game {
         let walker_positions: Vec<(f32, f32)> = self
             .enemies
             .iter()
-            .filter(|e| e.category == EnemyCategory::Walker || e.category == EnemyCategory::Boss)
+            .filter(|e| !e.is_dead && (e.category == EnemyCategory::Walker || e.category == EnemyCategory::Boss))
             .map(|e| (e.x, e.y))
             .collect();
         self.grid.can_place_tower(gx, gy, &walker_positions)
@@ -261,8 +284,34 @@ impl Game {
 
         self.visual_events.clear();
 
-        // 0. Update Commander tactical abilities
+        // 0. Update Commander tactical abilities & combo timers
         self.abilities.update(dt);
+        if self.combo_timer > 0.0 {
+            self.combo_timer -= dt;
+            if self.combo_timer <= 0.0 {
+                self.combo_kills = 0;
+                self.combo_multiplier = 1.0;
+            }
+        }
+
+        // 0.5. Update Ground Hazards (Napalm / Fire pools)
+        for h in self.ground_hazards.iter_mut() {
+            h.duration -= dt;
+            let hx = h.x;
+            let hy = h.y;
+            let r = h.radius;
+            let dps = h.dps;
+            for enemy in self.enemies.iter_mut() {
+                if !enemy.is_dead {
+                    let d = ((enemy.x - hx).powi(2) + (enemy.y - hy).powi(2)).sqrt();
+                    if d <= r {
+                        enemy.take_damage(dps * dt);
+                        enemy.apply_burn(dps * 0.45, 1.8);
+                    }
+                }
+            }
+        }
+        self.ground_hazards.retain(|h| h.duration > 0.0);
 
         // 1. Wave spawning
         self.update_wave_spawn(dt);
@@ -640,17 +689,34 @@ impl Game {
                     }
                 }
                 EnemyVariant::Broodmother => {
-                    // Hatch minions and spit acid
-                    new_minions.push(SpawnedMinion {
-                        variant: EnemyVariant::Swarm,
-                        x: enemy.x - 0.4,
-                        y: enemy.y - 0.4,
-                    });
-                    new_minions.push(SpawnedMinion {
-                        variant: EnemyVariant::Swarm,
-                        x: enemy.x + 0.4,
-                        y: enemy.y + 0.4,
-                    });
+                    // Hatch minions safely on valid passable tiles
+                    let offsets = [(-0.35, 0.0), (0.35, 0.0), (0.0, -0.35), (0.0, 0.35)];
+                    let mut spawned = 0;
+                    for (ox, oy) in offsets {
+                        let mx = (enemy.x + ox).clamp(0.5, (GRID_WIDTH - 1) as f32 + 0.5);
+                        let my = (enemy.y + oy).clamp(0.5, (GRID_HEIGHT - 1) as f32 + 0.5);
+                        let gx = mx.floor() as usize;
+                        let gy = my.floor() as usize;
+                        if gx < GRID_WIDTH && gy < GRID_HEIGHT && matches!(grid.cells[grid.idx(gx, gy)], CellState::Empty) {
+                            new_minions.push(SpawnedMinion {
+                                variant: EnemyVariant::Swarm,
+                                x: mx,
+                                y: my,
+                            });
+                            spawned += 1;
+                            if spawned >= 2 {
+                                break;
+                            }
+                        }
+                    }
+                    if spawned == 0 {
+                        // Safe fallback to exact boss position (already on legal path)
+                        new_minions.push(SpawnedMinion {
+                            variant: EnemyVariant::Swarm,
+                            x: enemy.x,
+                            y: enemy.y,
+                        });
+                    }
 
                     // Spit acid at closest tower
                     for &(t_id, _, _, tx, ty) in towers {
@@ -697,13 +763,15 @@ impl Game {
         let cooldown_dt = if is_overdrive { dt * 2.0 } else { dt };
         let dmg_mult = if is_overdrive { 1.35 } else { 1.0 };
 
-        // Step A: Aegis Towers repair nearby towers
+        // Step A: Aegis Towers repair nearby towers and Tier 3 overclocks firing rates
+        let mut overclocked_towers = Vec::new();
         for i in 0..self.towers.len() {
             if self.towers[i].tower_type == TowerType::Aegis {
                 let ax = self.towers[i].world_x;
                 let ay = self.towers[i].world_y;
                 let range = self.towers[i].range;
-                let repair_amount = match self.towers[i].tier {
+                let tier = self.towers[i].tier;
+                let repair_amount = match tier {
                     1 => 14.0 * dt,
                     2 => 28.0 * dt,
                     _ => 45.0 * dt,
@@ -715,6 +783,9 @@ impl Game {
                         if dist <= range {
                             if self.towers[j].hp < self.towers[j].max_hp {
                                 self.towers[j].hp = (self.towers[j].hp + repair_amount).min(self.towers[j].max_hp);
+                            }
+                            if tier == 3 {
+                                overclocked_towers.push(self.towers[j].id);
                             }
                         }
                     }
@@ -735,8 +806,11 @@ impl Game {
                 continue;
             }
 
+            let is_overclocked = overclocked_towers.contains(&tower.id);
+            let final_cooldown_dt = if is_overclocked { cooldown_dt * 1.35 } else { cooldown_dt };
+
             if tower.cooldown > 0.0 {
-                tower.cooldown -= cooldown_dt;
+                tower.cooldown -= final_cooldown_dt;
             }
 
             let mut target_idx: Option<usize> = None;
@@ -767,24 +841,28 @@ impl Game {
             }
 
             if let Some(t_idx) = target_idx {
-                let enemy = &mut self.enemies[t_idx];
-                tower.target_id = enemy.id as i32;
-                tower.rotation = (enemy.y - tower.world_y).atan2(enemy.x - tower.world_x);
+                let enemy_id = self.enemies[t_idx].id;
+                let enemy_x = self.enemies[t_idx].x;
+                let enemy_y = self.enemies[t_idx].y;
+                let is_vulnerable = self.enemies[t_idx].burn_timer > 0.0 || self.enemies[t_idx].variant == EnemyVariant::AcidSpitter;
+
+                tower.target_id = enemy_id as i32;
+                tower.rotation = (enemy_y - tower.world_y).atan2(enemy_x - tower.world_x);
                 let actual_damage = tower.damage * dmg_mult;
 
                 if tower.tower_type == TowerType::Laser {
-                    if tower.laser_target_id == enemy.id as i32 {
+                    if tower.laser_target_id == enemy_id as i32 {
                         tower.laser_ramp_time += dt;
                     } else {
-                        tower.laser_target_id = enemy.id as i32;
+                        tower.laser_target_id = enemy_id as i32;
                         tower.laser_ramp_time = 0.0;
                     }
                     let ramp_factor = 1.0 + (tower.laser_ramp_time * 0.8).min(3.0);
                     let beam_damage = actual_damage * ramp_factor * dt;
-                    enemy.take_damage(beam_damage);
+                    let target_dead = self.enemies[t_idx].take_damage(beam_damage);
                     tower.total_damage += beam_damage;
                     self.total_damage_dealt += beam_damage;
-                    if enemy.is_dead {
+                    if target_dead {
                         tower.kills += 1;
                         tower.laser_target_id = -1;
                         tower.laser_ramp_time = 0.0;
@@ -794,10 +872,40 @@ impl Game {
                         event_type: 1,
                         x: tower.world_x,
                         y: tower.world_y,
-                        target_x: enemy.x,
-                        target_y: enemy.y,
+                        target_x: enemy_x,
+                        target_y: enemy_y,
                         value: tower.tier as f32,
                     });
+
+                    // Tier 3 Perk: Prismatic Refraction beam to secondary target!
+                    if tower.tier == 3 {
+                        let mut second_idx: Option<usize> = None;
+                        let mut min_sd = f32::MAX;
+                        for (o_idx, other) in self.enemies.iter().enumerate() {
+                            if other.id != enemy_id && !other.is_dead {
+                                let sd = ((other.x - enemy_x).powi(2) + (other.y - enemy_y).powi(2)).sqrt();
+                                if sd < min_sd && sd <= 3.2 {
+                                    min_sd = sd;
+                                    second_idx = Some(o_idx);
+                                }
+                            }
+                        }
+                        if let Some(s_idx) = second_idx {
+                            let sx = self.enemies[s_idx].x;
+                            let sy = self.enemies[s_idx].y;
+                            let sec_dmg = beam_damage * 0.55;
+                            self.enemies[s_idx].take_damage(sec_dmg);
+                            tower.total_damage += sec_dmg;
+                            self.visual_events.push(VisualEvent {
+                                event_type: 1,
+                                x: enemy_x,
+                                y: enemy_y,
+                                target_x: sx,
+                                target_y: sy,
+                                value: 2.0,
+                            });
+                        }
+                    }
                     continue;
                 }
 
@@ -806,24 +914,37 @@ impl Game {
 
                     match tower.tower_type {
                         TowerType::Gatling => {
+                            tower.shot_counter += 1;
                             new_projs.push(Projectile::new_bullet(
                                 0,
                                 tower.world_x,
                                 tower.world_y,
-                                enemy.id as i32,
-                                enemy.x,
-                                enemy.y,
+                                enemy_id as i32,
+                                enemy_x,
+                                enemy_y,
                                 actual_damage,
                             ));
+                            // Tier 3 Perk: Every 7th shot fires an explosive Micro-Missile!
+                            if tower.tier == 3 && tower.shot_counter % 7 == 0 {
+                                new_projs.push(Projectile::new_micro_missile(
+                                    0,
+                                    tower.world_x,
+                                    tower.world_y,
+                                    enemy_id as i32,
+                                    enemy_x,
+                                    enemy_y,
+                                    actual_damage * 2.4,
+                                ));
+                            }
                         }
                         TowerType::Cannon => {
-                            let splash = 1.3 + (tower.tier as f32 * 0.3);
+                            let splash = 1.3 + (tower.tier as f32 * 0.4);
                             new_projs.push(Projectile::new_cannon_shell(
                                 0,
                                 tower.world_x,
                                 tower.world_y,
-                                enemy.x,
-                                enemy.y,
+                                enemy_x,
+                                enemy_y,
                                 actual_damage,
                                 splash,
                             ));
@@ -835,16 +956,40 @@ impl Game {
                                 0,
                                 tower.world_x,
                                 tower.world_y,
-                                enemy.id as i32,
-                                enemy.x,
-                                enemy.y,
+                                enemy_id as i32,
+                                enemy_x,
+                                enemy_y,
                                 actual_damage,
                                 slow,
                                 dur,
                             ));
+                            // Tier 3 Perk: Periodic Glacial Nova Shockwave!
+                            if tower.tier == 3 {
+                                tower.special_cooldown -= dt;
+                                if tower.special_cooldown <= 0.0 {
+                                    tower.special_cooldown = 4.0;
+                                    self.visual_events.push(VisualEvent {
+                                        event_type: 8, // Glacial Nova
+                                        x: tower.world_x,
+                                        y: tower.world_y,
+                                        target_x: 0.0,
+                                        target_y: 0.0,
+                                        value: tower.range,
+                                    });
+                                    for target in self.enemies.iter_mut() {
+                                        if !target.is_dead {
+                                            let td = ((target.x - tower.world_x).powi(2) + (target.y - tower.world_y).powi(2)).sqrt();
+                                            if td <= tower.range {
+                                                target.take_damage(40.0 * dmg_mult);
+                                                target.apply_slow(0.35, 3.2);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         TowerType::Tesla => {
-                            let max_chains = 2 + (tower.tier as usize * 2);
+                            let max_chains = if tower.tier == 3 { 10 } else { 2 + (tower.tier as usize * 2) };
                             let mut chained_targets = Vec::new();
                             let mut current_tx = tower.world_x;
                             let mut current_ty = tower.world_y;
@@ -858,7 +1003,7 @@ impl Game {
                                         continue;
                                     }
                                     let d = ((other.x - current_tx).powi(2) + (other.y - current_ty).powi(2)).sqrt();
-                                    if d < min_d && d <= 3.2 {
+                                    if d < min_d && d <= 3.4 {
                                         min_d = d;
                                         best_next = Some((e_idx, other.x, other.y));
                                     }
@@ -875,6 +1020,19 @@ impl Game {
                                     });
                                     let target_enemy = &mut self.enemies[c_idx];
                                     target_enemy.take_damage(dmg);
+                                    // Overload combo on Shielded or Burning enemy
+                                    if target_enemy.shield_hp > 0.0 || target_enemy.burn_timer > 0.0 {
+                                        let overload_dmg = 45.0 * self.combo_multiplier;
+                                        target_enemy.take_damage(overload_dmg);
+                                        self.visual_events.push(VisualEvent {
+                                            event_type: 3,
+                                            x: target_enemy.x,
+                                            y: target_enemy.y,
+                                            target_x: 0.0,
+                                            target_y: 0.0,
+                                            value: 1.5,
+                                        });
+                                    }
                                     tower.total_damage += dmg;
                                     self.total_damage_dealt += dmg;
                                     if target_enemy.is_dead {
@@ -883,38 +1041,81 @@ impl Game {
                                     chained_targets.push(target_enemy.id);
                                     current_tx = nx;
                                     current_ty = ny;
-                                    dmg *= 0.8;
+                                    dmg *= 0.82;
                                 } else {
                                     break;
                                 }
                             }
                         }
                         TowerType::Flamethrower => {
+                            tower.shot_counter += 1;
                             new_projs.push(Projectile::new_flame(
                                 0,
                                 tower.world_x,
                                 tower.world_y,
-                                enemy.x,
-                                enemy.y,
+                                enemy_x,
+                                enemy_y,
                                 actual_damage,
-                                actual_damage * 0.7,
+                                actual_damage * 0.75,
                             ));
+                            // Tier 3 Perk: Ground Napalm Pools!
+                            if tower.tier == 3 && tower.shot_counter % 4 == 0 {
+                                self.ground_hazards.push(GroundHazard {
+                                    x: enemy_x,
+                                    y: enemy_y,
+                                    radius: 1.25,
+                                    dps: actual_damage * 1.1,
+                                    duration: 4.5,
+                                    hazard_type: 0,
+                                });
+                            }
                         }
                         TowerType::Sniper => {
-                            enemy.take_damage(actual_damage);
-                            tower.total_damage += actual_damage;
-                            self.total_damage_dealt += actual_damage;
-                            if enemy.is_dead {
+                            // Vulnerability execution if burning or acid
+                            let hit_damage = if is_vulnerable { actual_damage * 1.75 } else { actual_damage };
+                            let killed = self.enemies[t_idx].take_damage(hit_damage);
+                            tower.total_damage += hit_damage;
+                            self.total_damage_dealt += hit_damage;
+                            if killed {
                                 tower.kills += 1;
                             }
                             self.visual_events.push(VisualEvent {
                                 event_type: 1,
                                 x: tower.world_x,
                                 y: tower.world_y,
-                                target_x: enemy.x,
-                                target_y: enemy.y,
-                                value: 4.0,
+                                target_x: enemy_x,
+                                target_y: enemy_y,
+                                value: if is_vulnerable { 5.0 } else { 4.0 },
                             });
+
+                            // Tier 3 Perk: Hyper-Penetration railgun piercing line!
+                            if tower.tier == 3 {
+                                let ldx = enemy_x - tower.world_x;
+                                let ldy = enemy_y - tower.world_y;
+                                let llen = (ldx * ldx + ldy * ldy).sqrt().max(0.01);
+                                let ndx = ldx / llen;
+                                let ndy = ldy / llen;
+
+                                for other in self.enemies.iter_mut() {
+                                    if other.id != enemy_id && !other.is_dead {
+                                        let vox = other.x - tower.world_x;
+                                        let voy = other.y - tower.world_y;
+                                        let proj_dot = vox * ndx + voy * ndy;
+                                        if proj_dot > 0.0 && proj_dot <= llen + 2.0 {
+                                            let perp = ((vox - proj_dot * ndx).powi(2) + (voy - proj_dot * ndy).powi(2)).sqrt();
+                                            if perp <= 0.8 {
+                                                let pierce = actual_damage * 0.65;
+                                                other.take_damage(pierce);
+                                                tower.total_damage += pierce;
+                                                self.total_damage_dealt += pierce;
+                                                if other.is_dead {
+                                                    tower.kills += 1;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         _ => {}
                     }
@@ -933,6 +1134,9 @@ impl Game {
     }
 
     fn update_projectiles(&mut self, dt: f32) {
+        let wave = self.wave_manager.current_wave;
+        let mut new_cluster_bomblets = Vec::new();
+
         for proj in self.projectiles.iter_mut() {
             proj.lifetime += dt;
             if proj.lifetime >= proj.max_lifetime {
@@ -976,6 +1180,22 @@ impl Game {
                                 let dmg = proj.damage * falloff;
                                 enemy.take_damage(dmg);
                                 self.total_damage_dealt += dmg;
+
+                                // Thermal shock reaction
+                                if enemy.slow_timer > 0.0 {
+                                    enemy.slow_timer = 0.0;
+                                    let shock_dmg = 120.0 * (1.0 + (wave as f32 - 1.0) * 0.12) * self.combo_multiplier;
+                                    enemy.take_damage(shock_dmg);
+                                    self.total_damage_dealt += shock_dmg;
+                                    self.visual_events.push(VisualEvent {
+                                        event_type: 7, // Thermal Shock Nova
+                                        x: enemy.x,
+                                        y: enemy.y,
+                                        target_x: 0.0,
+                                        target_y: 0.0,
+                                        value: shock_dmg,
+                                    });
+                                }
                             }
                         }
                         self.visual_events.push(VisualEvent {
@@ -986,6 +1206,42 @@ impl Game {
                             target_y: 0.0,
                             value: proj.splash_radius,
                         });
+
+                        // Tier 3 Cannon Perk: Cluster Bomb fragmentation!
+                        if proj.splash_radius >= 2.0 {
+                            new_cluster_bomblets.push(Projectile::new_cluster_bomblet(
+                                0,
+                                proj.x,
+                                proj.y,
+                                proj.x - 0.7,
+                                proj.y - 0.5,
+                                proj.damage * 0.45,
+                            ));
+                            new_cluster_bomblets.push(Projectile::new_cluster_bomblet(
+                                0,
+                                proj.x,
+                                proj.y,
+                                proj.x + 0.7,
+                                proj.y - 0.5,
+                                proj.damage * 0.45,
+                            ));
+                            new_cluster_bomblets.push(Projectile::new_cluster_bomblet(
+                                0,
+                                proj.x,
+                                proj.y,
+                                proj.x,
+                                proj.y + 0.7,
+                                proj.damage * 0.45,
+                            ));
+                            self.visual_events.push(VisualEvent {
+                                event_type: 9, // Cluster Burst
+                                x: proj.x,
+                                y: proj.y,
+                                target_x: 0.0,
+                                target_y: 0.0,
+                                value: 3.0,
+                            });
+                        }
                     }
                     ProjectileType::IceShard => {
                         for enemy in self.enemies.iter_mut() {
@@ -997,6 +1253,22 @@ impl Game {
                                 enemy.take_damage(proj.damage);
                                 enemy.apply_slow(proj.slow_factor, proj.slow_duration);
                                 self.total_damage_dealt += proj.damage;
+
+                                // Thermal shock reaction on burning enemy
+                                if enemy.burn_timer > 0.0 {
+                                    enemy.burn_timer = 0.0;
+                                    let shock_dmg = 120.0 * (1.0 + (wave as f32 - 1.0) * 0.12) * self.combo_multiplier;
+                                    enemy.take_damage(shock_dmg);
+                                    self.total_damage_dealt += shock_dmg;
+                                    self.visual_events.push(VisualEvent {
+                                        event_type: 7, // Thermal Shock Nova
+                                        x: enemy.x,
+                                        y: enemy.y,
+                                        target_x: 0.0,
+                                        target_y: 0.0,
+                                        value: shock_dmg,
+                                    });
+                                }
                             }
                         }
                     }
@@ -1010,8 +1282,78 @@ impl Game {
                                 enemy.take_damage(proj.damage);
                                 enemy.apply_burn(proj.burn_dps, proj.burn_duration);
                                 self.total_damage_dealt += proj.damage;
+
+                                // Thermal shock reaction on frozen enemy
+                                if enemy.slow_timer > 0.0 {
+                                    enemy.slow_timer = 0.0;
+                                    let shock_dmg = 120.0 * (1.0 + (wave as f32 - 1.0) * 0.12) * self.combo_multiplier;
+                                    enemy.take_damage(shock_dmg);
+                                    self.total_damage_dealt += shock_dmg;
+                                    self.visual_events.push(VisualEvent {
+                                        event_type: 7, // Thermal Shock Nova
+                                        x: enemy.x,
+                                        y: enemy.y,
+                                        target_x: 0.0,
+                                        target_y: 0.0,
+                                        value: shock_dmg,
+                                    });
+                                }
                             }
                         }
+                    }
+                    ProjectileType::MicroMissile => {
+                        for enemy in self.enemies.iter_mut() {
+                            if !enemy.is_dead {
+                                let d = ((enemy.x - proj.x).powi(2) + (enemy.y - proj.y).powi(2)).sqrt();
+                                if d <= proj.splash_radius {
+                                    enemy.take_damage(proj.damage);
+                                    enemy.apply_slow(0.2, 0.45); // Micro-stun
+                                    self.total_damage_dealt += proj.damage;
+                                }
+                            }
+                        }
+                        self.visual_events.push(VisualEvent {
+                            event_type: 0,
+                            x: proj.x,
+                            y: proj.y,
+                            target_x: 0.0,
+                            target_y: 0.0,
+                            value: 1.1,
+                        });
+                    }
+                    ProjectileType::ClusterBomblet => {
+                        for enemy in self.enemies.iter_mut() {
+                            if !enemy.is_dead {
+                                let d = ((enemy.x - proj.x).powi(2) + (enemy.y - proj.y).powi(2)).sqrt();
+                                if d <= proj.splash_radius {
+                                    enemy.take_damage(proj.damage);
+                                    self.total_damage_dealt += proj.damage;
+
+                                    if enemy.slow_timer > 0.0 {
+                                        enemy.slow_timer = 0.0;
+                                        let shock_dmg = 120.0 * (1.0 + (wave as f32 - 1.0) * 0.12) * self.combo_multiplier;
+                                        enemy.take_damage(shock_dmg);
+                                        self.total_damage_dealt += shock_dmg;
+                                        self.visual_events.push(VisualEvent {
+                                            event_type: 7,
+                                            x: enemy.x,
+                                            y: enemy.y,
+                                            target_x: 0.0,
+                                            target_y: 0.0,
+                                            value: shock_dmg,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        self.visual_events.push(VisualEvent {
+                            event_type: 0,
+                            x: proj.x,
+                            y: proj.y,
+                            target_x: 0.0,
+                            target_y: 0.0,
+                            value: 0.9,
+                        });
                     }
                     ProjectileType::EnemyMortar | ProjectileType::EnemyAcid => {
                         // Directly damages targeted tower!
@@ -1042,6 +1384,11 @@ impl Game {
                 }
             }
         }
+
+        for mut b in new_cluster_bomblets {
+            b.id = self.alloc_id();
+            self.projectiles.push(b);
+        }
     }
 
     fn cleanup(&mut self) {
@@ -1050,8 +1397,14 @@ impl Game {
 
         for enemy in self.enemies.iter() {
             if enemy.is_dead && !enemy.reached_goal {
-                earned_gold += enemy.gold_bounty as i32;
-                earned_score += enemy.score_value;
+                self.combo_kills += 1;
+                self.combo_timer = 3.0;
+                self.combo_multiplier = (1.0 + (self.combo_kills as f32 * 0.12)).min(4.0);
+
+                let mult_gold = (enemy.gold_bounty as f32 * self.combo_multiplier) as i32;
+                let mult_score = (enemy.score_value as f32 * self.combo_multiplier) as u32;
+                earned_gold += mult_gold;
+                earned_score += mult_score;
                 self.total_enemies_killed += 1;
 
                 if enemy.category == EnemyCategory::Boss {

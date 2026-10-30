@@ -115,6 +115,64 @@ body {
 .hud-item.score .hud-val { color: var(--accent-blue); }
 .hud-item.wave .hud-val { color: var(--accent-green); }
 
+.hud-item.combo {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(245, 158, 11, 0.25));
+    border: 1px solid #f59e0b;
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.35);
+    animation: comboPulse 1.2s infinite alternate ease-in-out;
+}
+.hud-item.combo .hud-val {
+    color: #fbbf24;
+    text-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+}
+@keyframes comboPulse {
+    0% { transform: scale(1); filter: brightness(1); }
+    100% { transform: scale(1.04); filter: brightness(1.25); }
+}
+
+.overcharge-badge {
+    margin: 8px 0;
+    padding: 6px 10px;
+    background: linear-gradient(135deg, rgba(192, 132, 252, 0.25), rgba(168, 85, 247, 0.15));
+    border: 1px solid #c084fc;
+    border-radius: 6px;
+    color: #f3e8ff;
+    font-size: 11px;
+    font-weight: 700;
+    text-shadow: 0 0 6px rgba(192, 132, 252, 0.6);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.overcharge-hint {
+    margin: 6px 0;
+    padding: 5px 8px;
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px dashed #64748b;
+    border-radius: 6px;
+    color: #94a3b8;
+    font-size: 11px;
+}
+
+.combo-guide-mini {
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: rgba(15, 23, 42, 0.6);
+    border-left: 3px solid #38bdf8;
+    border-radius: 4px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #cbd5e1;
+}
+
+.guide-tag {
+    font-weight: 800;
+    color: #38bdf8;
+}
+
 .wave-control-box {
     display: flex;
     align-items: center;

@@ -138,6 +138,8 @@ pub struct Tower {
     pub laser_target_id: i32,
     pub laser_ramp_time: f32,
     pub targeting_priority: TargetingPriority,
+    pub shot_counter: u32,
+    pub special_cooldown: f32,
 }
 
 impl Tower {
@@ -172,6 +174,8 @@ impl Tower {
             } else {
                 TargetingPriority::First
             },
+            shot_counter: 0,
+            special_cooldown: 0.0,
         }
     }
 

@@ -4,14 +4,14 @@ class UIController {
     constructor(game) {
         this.game = game;
         this.towerTypes = [
-            { id: 0, name: 'Gatling Turret', cost: 100, desc: 'High rate of fire, single target physical.', key: '1' },
-            { id: 1, name: 'Heavy Cannon', cost: 140, desc: 'Long range artillery with explosive splash AOE.', key: '2' },
-            { id: 2, name: 'Cryo Spire', cost: 130, desc: 'Chills targets, slowing movement speed.', key: '3' },
-            { id: 3, name: 'Tesla Coil', cost: 175, desc: 'Chain lightning jumping between up to 6 targets.', key: '4' },
-            { id: 4, name: 'Flamethrower', cost: 160, desc: 'Cone of magma inflicting stacking burn DoT.', key: '5' },
-            { id: 5, name: 'Sniper Railgun', cost: 200, desc: 'Extreme range, armor-piercing anti-boss shot.', key: '6' },
-            { id: 6, name: 'Laser Melter', cost: 220, desc: 'Continuous beam that ramps up damage over time.', key: '7' },
-            { id: 7, name: 'Aegis Beacon', cost: 150, desc: 'Support pylon repairing nearby damaged towers.', key: '8' }
+            { id: 0, name: 'Gatling Turret', cost: 100, desc: 'High rate of fire physical gun. Tier 3 unlocks Rotary Micro-Missiles.', perk: '🚀 Micro-Missiles on every 7th shot', key: '1' },
+            { id: 1, name: 'Heavy Cannon', cost: 140, desc: 'Long range artillery with explosive splash AOE.', perk: '💥 Fragmentation splits into 3 Cluster Bomblets', key: '2' },
+            { id: 2, name: 'Cryo Spire', cost: 130, desc: 'Chills targets, slowing movement speed. Combos with fire for Thermal Shock.', perk: '❄️ Glacial Nova frost shockwave every 4s', key: '3' },
+            { id: 3, name: 'Tesla Coil', cost: 175, desc: 'Chain lightning jumping between targets. Overloads shielded creeps.', perk: '⚡ Superconducts up to 10 targets', key: '4' },
+            { id: 4, name: 'Flamethrower', cost: 160, desc: 'Cone of magma inflicting stacking burn DoT. Triggers Thermal Shock on frozen foes.', perk: '🔥 Leaves burning Napalm ground pools', key: '5' },
+            { id: 5, name: 'Sniper Railgun', cost: 200, desc: 'Extreme range, anti-boss shot. Critical execution on burning/corroded foes.', perk: '🎯 Hyper-Penetration piercing line beam', key: '6' },
+            { id: 6, name: 'Laser Melter', cost: 220, desc: 'Continuous beam that ramps up damage over time.', perk: '🌈 Prismatic Refraction dual beams', key: '7' },
+            { id: 7, name: 'Aegis Beacon', cost: 150, desc: 'Support pylon repairing nearby damaged towers.', perk: '🛡️ Overclocks adjacent towers (+35% fire rate)', key: '8' }
         ];
 
         this.levels = [
@@ -250,6 +250,18 @@ class UIController {
         document.getElementById('hud-gold').textContent = state.gold;
         document.getElementById('hud-lives').textContent = `${state.lives}/${state.maxLives}`;
         document.getElementById('hud-score').textContent = state.score;
+
+        // Kill Streak Combo badge
+        const comboBox = document.getElementById('hud-combo-box');
+        const comboText = document.getElementById('hud-combo-text');
+        if (comboBox && comboText) {
+            if (state.comboKills >= 2 && state.comboTimer > 0) {
+                comboBox.classList.remove('hidden');
+                comboText.textContent = `x${state.comboMultiplier.toFixed(2)} (${state.comboKills} kills)`;
+            } else {
+                comboBox.classList.add('hidden');
+            }
+        }
 
         if (state.surgeTier > 0) {
             const surgeRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][state.surgeTier - 1] || state.surgeTier;
@@ -508,7 +520,11 @@ class UIController {
             panel.innerHTML = `
                 <div class="empty-detail">
                     <p>💡 Select a tower on the grid to inspect stats, upgrade tiers, repair, or sell.</p>
-                    <p class="hint">Hotkeys: [1-8] Build, [U] Upgrade, [R] Repair, [S] Sell, [T] Targeting, [Space] Wave</p>
+                    <p class="hint">Hotkeys: [1-8] Build, [Right-Click / Esc] Cancel, [U] Upgrade, [R] Repair, [S] Sell, [T] Targeting, [Space] Wave</p>
+                    <div class="combo-guide-mini">
+                        <span class="guide-tag">⚡ COMBOS:</span>
+                        <span>❄️ Cryo + 🔥 Fire/Explosive = <strong>THERMAL SHOCK!</strong> (+150 Burst DMG)</span>
+                    </div>
                 </div>
             `;
             return;
@@ -528,6 +544,16 @@ class UIController {
                     <p class="detail-type">${info.desc}</p>
                 </div>
             </div>
+
+            ${t.tier === 3 ? `
+                <div class="overcharge-badge">
+                    ⭐ TIER 3 OVERCHARGE: ${info.perk}
+                </div>
+            ` : `
+                <div class="overcharge-hint">
+                    💡 Tier 3 Unlocks: ${info.perk}
+                </div>
+            `}
 
             <div class="detail-hp-bar">
                 <div class="hp-fill" style="width: ${(t.hp / t.maxHp) * 100}%"></div>
@@ -554,7 +580,7 @@ class UIController {
                         ⭐ Upgrade to Tier ${t.tier + 1} (💰 ${upgradeCost})
                     </button>
                 ` : `
-                    <button class="action-btn max-btn" disabled>★ MAX TIER REACHED</button>
+                    <button class="action-btn max-btn" disabled>★ MAX OVERCHARGE ACTIVE</button>
                 `}
 
                 <button id="btn-repair-tower" class="action-btn repair-btn" ${missingHp <= 0 || this.game.state.gold < repairCost ? 'disabled' : ''}>

@@ -14,6 +14,10 @@ pub enum ProjectileType {
     EnemyMortar = 7,
     EnemyAcid = 8,
     EnemyRocket = 9,
+
+    // Tier 3 & Combo Special Projectiles
+    MicroMissile = 10,
+    ClusterBomblet = 11,
 }
 
 #[derive(Clone, Debug)]
@@ -174,6 +178,52 @@ impl Projectile {
             is_expired: false,
             lifetime: 0.0,
             max_lifetime: 2.5,
+        }
+    }
+
+    pub fn new_micro_missile(id: usize, x: f32, y: f32, target_enemy_id: i32, target_x: f32, target_y: f32, damage: f32) -> Self {
+        Self {
+            id,
+            proj_type: ProjectileType::MicroMissile,
+            x,
+            y,
+            target_x,
+            target_y,
+            speed: 15.0,
+            damage,
+            splash_radius: 0.8,
+            target_enemy_id,
+            target_tower_id: -1,
+            slow_factor: 1.0,
+            slow_duration: 0.0,
+            burn_dps: 0.0,
+            burn_duration: 0.0,
+            is_expired: false,
+            lifetime: 0.0,
+            max_lifetime: 1.5,
+        }
+    }
+
+    pub fn new_cluster_bomblet(id: usize, x: f32, y: f32, target_x: f32, target_y: f32, damage: f32) -> Self {
+        Self {
+            id,
+            proj_type: ProjectileType::ClusterBomblet,
+            x,
+            y,
+            target_x,
+            target_y,
+            speed: 8.0,
+            damage,
+            splash_radius: 1.1,
+            target_enemy_id: -1,
+            target_tower_id: -1,
+            slow_factor: 1.0,
+            slow_duration: 0.0,
+            burn_dps: 0.0,
+            burn_duration: 0.0,
+            is_expired: false,
+            lifetime: 0.0,
+            max_lifetime: 1.0,
         }
     }
 }

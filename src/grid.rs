@@ -240,6 +240,15 @@ impl Grid {
             return false;
         }
 
+        // Cannot place directly on top of an active enemy walker
+        for &(wx, wy) in active_walkers {
+            let egx = (wx.floor().max(0.0) as usize).min(GRID_WIDTH - 1);
+            let egy = (wy.floor().max(0.0) as usize).min(GRID_HEIGHT - 1);
+            if egx == x && egy == y {
+                return false;
+            }
+        }
+
         // Temporarily place a mock obstacle
         self.cells[idx] = CellState::Obstacle;
 
@@ -250,11 +259,32 @@ impl Grid {
         let mut all_walkers_reach = true;
         if has_path {
             for &(wx, wy) in active_walkers {
-                let gx = wx.round().max(0.0).min((GRID_WIDTH - 1) as f32) as usize;
-                let gy = wy.round().max(0.0).min((GRID_HEIGHT - 1) as f32) as usize;
+                let gx = (wx.floor().max(0.0) as usize).min(GRID_WIDTH - 1);
+                let gy = (wy.floor().max(0.0) as usize).min(GRID_HEIGHT - 1);
+                if gx == self.goal_x && gy == self.goal_y {
+                    continue;
+                }
                 if !self.check_path_exists(gx, gy, self.goal_x, self.goal_y) {
-                    all_walkers_reach = false;
-                    break;
+                    // Check if adjacent neighbor cell can reach goal (in case enemy is transitioning cell boundary)
+                    let mut can_step_out = false;
+                    for (ndx, ndy) in [(1isize, 0isize), (-1, 0), (0, 1), (0, -1)] {
+                        let nx = gx as isize + ndx;
+                        let ny = gy as isize + ndy;
+                        if nx >= 0 && nx < self.width as isize && ny >= 0 && ny < self.height as isize {
+                            let unx = nx as usize;
+                            let uny = ny as usize;
+                            if matches!(self.cells[self.idx(unx, uny)], CellState::Empty)
+                                && self.check_path_exists(unx, uny, self.goal_x, self.goal_y)
+                            {
+                                can_step_out = true;
+                                break;
+                            }
+                        }
+                    }
+                    if !can_step_out {
+                        all_walkers_reach = false;
+                        break;
+                    }
                 }
             }
         }

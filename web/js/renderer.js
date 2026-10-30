@@ -100,14 +100,14 @@ class GameRenderer {
         });
     }
 
-    addExplosion(x, y, radius = 1.0) {
+    addExplosion(x, y, radius = 1.0, color = '#f97316') {
         this.explosions.push({
             x: x * this.cellSize,
             y: y * this.cellSize,
             radius: radius * this.cellSize,
             currentRadius: 4,
             alpha: 1.0,
-            color: '#f97316'
+            color
         });
     }
 
@@ -142,6 +142,9 @@ class GameRenderer {
 
         // 3. Draw Dynamic Flow Path (Energy Flow)
         this.drawDynamicPath(ctx, gameState.path);
+
+        // 3.5. Draw Ground Hazards (Napalm / Fire pools)
+        this.drawHazards(ctx, gameState.hazards);
 
         // 4. Draw Spawn Portal and Goal Nexus (Dynamic for each level!)
         this.drawPortals(ctx, gameState.spawn, gameState.goal);
@@ -543,10 +546,67 @@ class GameRenderer {
         }
     }
 
+    drawHazards(ctx, hazards) {
+        if (!hazards || hazards.length === 0) return;
+        const now = Date.now() * 0.005;
+        for (const h of hazards) {
+            const hx = h.x * this.cellSize;
+            const hy = h.y * this.cellSize;
+            const hr = h.radius * this.cellSize;
+
+            ctx.save();
+            const pulse = 0.85 + Math.sin(now + h.x) * 0.15;
+            const grad = ctx.createRadialGradient(hx, hy, hr * 0.15, hx, hy, hr);
+            grad.addColorStop(0, 'rgba(239, 68, 68, 0.6)');
+            grad.addColorStop(0.5, 'rgba(249, 115, 22, 0.35)');
+            grad.addColorStop(1, 'rgba(249, 115, 22, 0.0)');
+
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(hx, hy, hr * pulse, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Flickering flame embers
+            ctx.fillStyle = '#fef08a';
+            for (let i = 0; i < 4; i++) {
+                const angle = now * 2 + i * (Math.PI / 2);
+                const dist = (hr * 0.45) * (0.6 + Math.sin(now * 3 + i) * 0.4);
+                const ex = hx + Math.cos(angle) * dist;
+                const ey = hy + Math.sin(angle) * dist;
+                ctx.fillRect(ex - 1.5, ey - 1.5, 3, 3);
+            }
+            ctx.restore();
+        }
+    }
+
     drawProjectiles(ctx, projectiles) {
         for (const p of projectiles) {
             const px = p.x * this.cellSize;
             const py = p.y * this.cellSize;
+
+            if (p.type === 10) {
+                // Micro-Missile (Gatling Tier 3)
+                ctx.save();
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.arc(px, py, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(px, py, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                continue;
+            } else if (p.type === 11) {
+                // Cluster Bomblet (Cannon Tier 3)
+                ctx.save();
+                ctx.fillStyle = '#fb923c';
+                ctx.beginPath();
+                ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                continue;
+            }
 
             let spriteKey = 'proj_bullet';
             if (p.type === 1) spriteKey = 'proj_cannon';
@@ -606,9 +666,19 @@ class GameRenderer {
                 ctx.stroke();
                 ctx.restore();
             } else if (ev.type === 0) {
-                this.addExplosion(ev.x, ev.y, ev.value);
+                this.addExplosion(ev.x, ev.y, ev.value, '#f97316');
             } else if (ev.type === 3) {
-                this.addExplosion(ev.x, ev.y, ev.value);
+                this.addExplosion(ev.x, ev.y, ev.value, '#38bdf8');
+            } else if (ev.type === 7) {
+                // Thermal Shock dual frost-fire explosion
+                this.addExplosion(ev.x, ev.y, 1.8, '#38bdf8');
+                this.addExplosion(ev.x, ev.y, 1.2, '#f97316');
+            } else if (ev.type === 8) {
+                // Glacial Nova expanding ice ring
+                this.addExplosion(ev.x, ev.y, ev.value, '#67e8f9');
+            } else if (ev.type === 9) {
+                // Cluster burst
+                this.addExplosion(ev.x, ev.y, 1.4, '#fb923c');
             }
         }
     }
@@ -625,12 +695,13 @@ class GameRenderer {
             }
 
             ctx.save();
-            ctx.fillStyle = `rgba(249, 115, 22, ${ex.alpha * 0.5})`;
+            ctx.fillStyle = ex.color || '#f97316';
+            ctx.globalAlpha = Math.max(0, ex.alpha * 0.5);
             ctx.beginPath();
             ctx.arc(ex.x, ex.y, ex.currentRadius, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.strokeStyle = `rgba(254, 240, 138, ${ex.alpha})`;
+            ctx.strokeStyle = '#fef08a';
             ctx.lineWidth = 2;
             ctx.stroke();
             ctx.restore();

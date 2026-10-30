@@ -179,6 +179,35 @@ class SoundEngine {
         this.playTone(150, 'sawtooth', 0.15, 0.3);
     }
 
+    // Sound effect: Cancel build / deselect
+    playCancel() {
+        this.playTone(400, 'sine', 0.06, 0.15);
+        setTimeout(() => this.playTone(280, 'sine', 0.08, 0.12), 40);
+    }
+
+    // Sound effect: Elemental Reaction - Thermal Shock!
+    playThermalShock() {
+        this.playTone(1050, 'sawtooth', 0.18, 0.4);
+        setTimeout(() => this.playNoise(0.35, 900, 0.5), 30);
+        setTimeout(() => this.playTone(130, 'sine', 0.35, 0.45), 50);
+    }
+
+    // Sound effect: Cluster fragmentation bomblets
+    playCluster() {
+        this.playNoise(0.12, 1200, 0.25);
+        setTimeout(() => this.playNoise(0.14, 1000, 0.25), 60);
+        setTimeout(() => this.playNoise(0.15, 800, 0.25), 120);
+    }
+
+    // Sound effect: Combo multiplier streak
+    playComboChime(streak) {
+        const baseFreq = 523.25; // C5
+        const semitones = [0, 2, 4, 7, 9, 12, 14, 16];
+        const pitchIdx = Math.min(streak, semitones.length - 1);
+        const freq = baseFreq * Math.pow(2, semitones[pitchIdx] / 12);
+        this.playTone(freq, 'triangle', 0.16, 0.28);
+    }
+
     // Sound effect: Boss Arrival Siren
     playBossAlarm() {
         if (!this.sfxEnabled) return;

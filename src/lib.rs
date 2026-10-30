@@ -12,13 +12,14 @@ use tower::TowerType;
 static mut GAME_INSTANCE: Option<Game> = None;
 
 // Reusable export buffers
-static mut HEADER_BUFFER: [f32; 24] = [0.0; 24];
+static mut HEADER_BUFFER: [f32; 28] = [0.0; 28];
 static mut OBSTACLES_BUFFER: [f32; GRID_WIDTH * GRID_HEIGHT] = [0.0; GRID_WIDTH * GRID_HEIGHT];
 static mut PATH_BUFFER: [f32; 512 * 2] = [0.0; 1024];
 static mut TOWERS_BUFFER: [f32; 256 * 14] = [0.0; 3584];
 static mut ENEMIES_BUFFER: [f32; 512 * 14] = [0.0; 7168];
 static mut PROJECTILES_BUFFER: [f32; 512 * 6] = [0.0; 3072];
 static mut EVENTS_BUFFER: [f32; 256 * 6] = [0.0; 1536];
+static mut HAZARDS_BUFFER: [f32; 64 * 4] = [0.0; 256];
 
 fn get_game() -> &'static mut Game {
     unsafe {
@@ -219,6 +220,10 @@ fn sync_buffers() {
         HEADER_BUFFER[21] = g.abilities.strike_cooldown;
         HEADER_BUFFER[22] = g.abilities.overdrive_cooldown;
         HEADER_BUFFER[23] = if g.abilities.overdrive_timer > 0.0 { 1.0 } else { 0.0 };
+        HEADER_BUFFER[24] = g.combo_kills as f32;
+        HEADER_BUFFER[25] = g.combo_multiplier;
+        HEADER_BUFFER[26] = g.combo_timer;
+        HEADER_BUFFER[27] = g.ground_hazards.len() as f32;
 
         // Obstacles
         for y in 0..GRID_HEIGHT {
@@ -293,6 +298,15 @@ fn sync_buffers() {
             EVENTS_BUFFER[offset + 4] = ev.target_y;
             EVENTS_BUFFER[offset + 5] = ev.value;
         }
+
+        // Ground Hazards (4 floats each: x, y, radius, type)
+        for (i, h) in g.ground_hazards.iter().enumerate().take(64) {
+            let offset = i * 4;
+            HAZARDS_BUFFER[offset] = h.x;
+            HAZARDS_BUFFER[offset + 1] = h.y;
+            HAZARDS_BUFFER[offset + 2] = h.radius;
+            HAZARDS_BUFFER[offset + 3] = h.hazard_type as f32;
+        }
     }
 }
 
@@ -330,4 +344,9 @@ pub extern "C" fn get_projectiles_ptr() -> *const f32 {
 #[no_mangle]
 pub extern "C" fn get_events_ptr() -> *const f32 {
     std::ptr::addr_of!(EVENTS_BUFFER) as *const f32
+}
+
+#[no_mangle]
+pub extern "C" fn get_hazards_ptr() -> *const f32 {
+    std::ptr::addr_of!(HAZARDS_BUFFER) as *const f32
 }
