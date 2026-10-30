@@ -31,8 +31,15 @@ class GameRenderer {
         this.explosions = [];
         this.shockwaves = [];
         this.pathDashOffset = 0;
+        this.shakeDuration = 0;
+        this.shakeMagnitude = 0;
 
         this.resetCamera();
+    }
+
+    screenShake(magnitude = 15, duration = 0.5) {
+        this.shakeMagnitude = magnitude;
+        this.shakeDuration = duration;
     }
 
     resize() {
@@ -116,8 +123,15 @@ class GameRenderer {
         // Apply DPR scaling
         ctx.scale(dpr, dpr);
 
-        // Apply Camera Transformation (Pan & Zoom)
-        ctx.translate(this.camera.x, this.camera.y);
+        // Apply Camera Transformation (Pan & Zoom & Screen Shake)
+        if (this.shakeDuration > 0) {
+            this.shakeDuration -= dt;
+            const sx = (Math.random() - 0.5) * this.shakeMagnitude;
+            const sy = (Math.random() - 0.5) * this.shakeMagnitude;
+            ctx.translate(this.camera.x + sx, this.camera.y + sy);
+        } else {
+            ctx.translate(this.camera.x, this.camera.y);
+        }
         ctx.scale(this.camera.zoom, this.camera.zoom);
 
         // 1. Draw Arena Grid & Background
@@ -133,7 +147,8 @@ class GameRenderer {
         this.drawPortals(ctx, gameState.spawn, gameState.goal);
 
         // 5. Draw Placed Towers
-        this.drawTowers(ctx, gameState.towers, selectedPlacedTower);
+        const isOverdrive = gameState.abilities && gameState.abilities.overdriveActive;
+        this.drawTowers(ctx, gameState.towers, selectedPlacedTower, isOverdrive);
 
         // 6. Draw Range & Hover Preview
         this.drawHoverPreview(ctx, hoverTile, selectedTowerType, gameState);
@@ -287,7 +302,7 @@ class GameRenderer {
         ctx.restore();
     }
 
-    drawTowers(ctx, towers, selectedPlacedTower) {
+    drawTowers(ctx, towers, selectedPlacedTower, isOverdrive = false) {
         for (const t of towers) {
             const px = t.gx * this.cellSize;
             const py = t.gy * this.cellSize;
@@ -306,6 +321,19 @@ class GameRenderer {
 
                 ctx.strokeStyle = '#fbbf24';
                 ctx.strokeRect(px - 2, py - 2, this.cellSize + 4, this.cellSize + 4);
+                ctx.restore();
+            }
+
+            // Overdrive electric aura
+            if (isOverdrive) {
+                ctx.save();
+                ctx.strokeStyle = '#fbbf24';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#f59e0b';
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 21 + Math.sin(Date.now() * 0.012) * 2, 0, Math.PI * 2);
+                ctx.stroke();
                 ctx.restore();
             }
 
@@ -405,6 +433,56 @@ class GameRenderer {
             const spriteSize = isBoss ? 64 : 40;
             const half = spriteSize / 2;
 
+            // Elite Affix Auras
+            if (e.eliteAffix === 1) {
+                // Shielded: pulsing cyan energy bubble
+                ctx.save();
+                ctx.strokeStyle = '#22d3ee';
+                ctx.lineWidth = 2.5;
+                ctx.shadowColor = '#06b6d4';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(ex, ey, half + 4 + Math.sin(Date.now() * 0.008) * 2, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(6, 182, 212, 0.15)';
+                ctx.fill();
+                ctx.restore();
+            } else if (e.eliteAffix === 2) {
+                // Berserk: fiery rage aura
+                ctx.save();
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#f97316';
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.arc(ex, ey, half + 3 + Math.sin(Date.now() * 0.02) * 3, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+                ctx.fill();
+                ctx.restore();
+            } else if (e.eliteAffix === 3) {
+                // Regenerator: bio-green aura
+                ctx.save();
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#34d399';
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.arc(ex, ey, half + 2, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            } else if (e.eliteAffix === 4) {
+                // Juggernaut: heavy iron armor plating ring
+                ctx.save();
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([6, 4]);
+                ctx.beginPath();
+                ctx.arc(ex, ey, half + 3, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+
             const sprite = this.sprites.get(`enemy_${e.variant}`);
             if (sprite) {
                 ctx.save();
@@ -432,16 +510,35 @@ class GameRenderer {
                 ctx.restore();
             }
 
-            const barWidth = isBoss ? 48 : 26;
-            const barY = ey - half - (isBoss ? 8 : 5);
+            const barWidth = isBoss ? 48 : 28;
+            const barY = ey - half - (isBoss ? 10 : 6);
+
+            // Shield Bar (if shielded)
+            if (e.maxShieldHp > 0 && e.shieldHp > 0) {
+                this.drawBar(ctx, ex - barWidth / 2, barY - 4, barWidth, 3, e.shieldHp / e.maxShieldHp, '#06b6d4', '#0f766e');
+            }
+
+            // Health Bar
             this.drawBar(ctx, ex - barWidth / 2, barY, barWidth, isBoss ? 5 : 3, e.hp / e.maxHp, '#22c55e', '#ef4444');
 
-            if (isBoss) {
-                ctx.fillStyle = '#ef4444';
-                ctx.font = 'bold 10px sans-serif';
+            // Unit Name / Affix Label
+            if (isBoss || e.eliteAffix > 0) {
+                ctx.save();
+                ctx.font = 'bold 9px sans-serif';
                 ctx.textAlign = 'center';
-                const bossName = e.variant === 10 ? 'TITAN' : (e.variant === 11 ? 'BROOD' : 'MECH');
-                ctx.fillText(`★ ${bossName}`, ex, barY - 3);
+                let label = '';
+                if (isBoss) {
+                    const bossName = e.variant === 10 ? 'TITAN' : (e.variant === 11 ? 'BROOD' : 'MECH');
+                    label = `★ ${bossName}`;
+                    ctx.fillStyle = '#ef4444';
+                }
+                if (e.eliteAffix > 0) {
+                    const affixNames = ['', '🛡️SHIELD', '⚡BERSERK', '💚REGEN', '⛓️ARMOR'];
+                    label = label ? `${label} ${affixNames[e.eliteAffix]}` : affixNames[e.eliteAffix];
+                    if (!isBoss) ctx.fillStyle = '#f59e0b';
+                }
+                ctx.fillText(label, ex, barY - (e.maxShieldHp > 0 && e.shieldHp > 0 ? 6 : 3));
+                ctx.restore();
             }
         }
     }

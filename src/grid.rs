@@ -146,6 +146,35 @@ impl Grid {
                 self.set_obstacle(7, 6);
                 self.set_obstacle(7, 7);
             }
+            5 => {
+                // Level 5: "Omega Core" - The Abyssal Crucible
+                // Dual bifurcating energy baffles creating twin tactical arenas!
+                self.spawn_x = 0;
+                self.spawn_y = 7;
+                self.goal_x = 23;
+                self.goal_y = 7;
+
+                // First choke wall at x=6: blocks center y=3..10, forcing route through top (0..2) or bottom (11..13)
+                for y in 3..=10 {
+                    self.set_obstacle(6, y);
+                }
+
+                // Center tactical hub at x=12: blocks outer lanes y=0..4 and y=9..13, forcing flow into center y=5..8
+                for y in 0..=4 {
+                    self.set_obstacle(12, y);
+                }
+                for y in 9..=13 {
+                    self.set_obstacle(12, y);
+                }
+                // Central power cores inside hub
+                self.set_obstacle(11, 6);
+                self.set_obstacle(13, 7);
+
+                // Third choke wall at x=18: blocks center y=3..10, forcing route through outer wings
+                for y in 3..=10 {
+                    self.set_obstacle(18, y);
+                }
+            }
             _ => {
                 // Default fallback to Level 1
                 self.spawn_x = 0;

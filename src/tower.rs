@@ -1,5 +1,26 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
+pub enum TargetingPriority {
+    First = 0,
+    Strongest = 1,
+    Weakest = 2,
+    Closest = 3,
+}
+
+impl TargetingPriority {
+    pub fn from_u8(v: u8) -> Self {
+        match v {
+            0 => TargetingPriority::First,
+            1 => TargetingPriority::Strongest,
+            2 => TargetingPriority::Weakest,
+            3 => TargetingPriority::Closest,
+            _ => TargetingPriority::First,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
 pub enum TowerType {
     Gatling = 0,
     Cannon = 1,
@@ -116,6 +137,7 @@ pub struct Tower {
     pub stun_timer: f32,
     pub laser_target_id: i32,
     pub laser_ramp_time: f32,
+    pub targeting_priority: TargetingPriority,
 }
 
 impl Tower {
@@ -145,6 +167,11 @@ impl Tower {
             stun_timer: 0.0,
             laser_target_id: -1,
             laser_ramp_time: 0.0,
+            targeting_priority: if t_type == TowerType::Sniper {
+                TargetingPriority::Strongest
+            } else {
+                TargetingPriority::First
+            },
         }
     }
 

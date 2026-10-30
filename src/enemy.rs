@@ -8,6 +8,16 @@ pub enum EnemyCategory {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
+pub enum EliteAffix {
+    None = 0,
+    Shielded = 1,    // Kinetic shield absorbing damage
+    Berserk = 2,     // Faster move speed and attack rate
+    Regenerator = 3, // Constantly repairs health
+    Juggernaut = 4,  // Heavy physical armor reduction
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
 pub enum EnemyVariant {
     // Walkers
     Scout = 0,
@@ -79,6 +89,9 @@ pub struct Enemy {
     pub id: usize,
     pub variant: EnemyVariant,
     pub category: EnemyCategory,
+    pub elite_affix: EliteAffix,
+    pub shield_hp: f32,
+    pub max_shield_hp: f32,
     pub x: f32,
     pub y: f32,
     pub hp: f32,
@@ -103,16 +116,64 @@ pub struct Enemy {
 }
 
 impl Enemy {
-    pub fn new(id: usize, variant: EnemyVariant, wave_multiplier: f32, spawn_x: f32, spawn_y: f32) -> Self {
-        let (base_hp, speed, atk, gold, atk_range) = variant.base_stats();
+    pub fn new(id: usize, variant: EnemyVariant, wave_multiplier: f32, surge_tier: u32, spawn_x: f32, spawn_y: f32) -> Self {
+        let (base_hp, mut speed, atk, gold, atk_range) = variant.base_stats();
         let scaled_hp = base_hp * wave_multiplier;
-        let scaled_atk = atk * (1.0 + (wave_multiplier - 1.0) * 0.4);
+        let scaled_atk = atk * (1.0 + (wave_multiplier - 1.0) * 0.45);
         let category = variant.category();
+
+        // Speed ramp up during high exponential surges
+        if surge_tier > 0 {
+            speed *= 1.0 + (surge_tier as f32 * 0.07).min(0.35);
+        }
+
+        // Determine Elite Affix:
+        // Surge waves give high chance of elite affixes (Shielded, Berserk, Regenerator, Juggernaut)
+        let mut elite = EliteAffix::None;
+        let mut max_shield = 0.0;
+
+        if surge_tier > 0 {
+            let hash = (id * 2654435761 ^ (variant as usize * 40503) ^ (surge_tier as usize * 179)) % 100;
+            let elite_chance = (15 + surge_tier * 18).min(80);
+            if hash < elite_chance as usize {
+                elite = match (hash % 4) + 1 {
+                    1 => EliteAffix::Shielded,
+                    2 => EliteAffix::Berserk,
+                    3 => EliteAffix::Regenerator,
+                    _ => EliteAffix::Juggernaut,
+                };
+            }
+        }
+
+        if elite == EliteAffix::Shielded {
+            max_shield = scaled_hp * 0.45;
+        } else if elite == EliteAffix::Berserk {
+            speed *= 1.30;
+        }
+
+        let mut atk_cd = match variant {
+            EnemyVariant::SiegeBrawler => 1.2,
+            EnemyVariant::ArtilleryBug => 2.0,
+            EnemyVariant::Bomber => 0.1,
+            EnemyVariant::EMPDisruptor => 3.5,
+            EnemyVariant::AcidSpitter => 1.6,
+            EnemyVariant::TitanColossus => 1.5,
+            EnemyVariant::Broodmother => 2.2,
+            EnemyVariant::AnnihilatorMech => 2.0,
+            _ => 1.0,
+        };
+
+        if elite == EliteAffix::Berserk {
+            atk_cd *= 0.65;
+        }
 
         Self {
             id,
             variant,
             category,
+            elite_affix: elite,
+            shield_hp: max_shield,
+            max_shield_hp: max_shield,
             x: spawn_x,
             y: spawn_y,
             hp: scaled_hp,
@@ -121,19 +182,9 @@ impl Enemy {
             current_speed: speed,
             attack_power: scaled_atk,
             attack_range: atk_range,
-            attack_cooldown: match variant {
-                EnemyVariant::SiegeBrawler => 1.2,
-                EnemyVariant::ArtilleryBug => 2.0,
-                EnemyVariant::Bomber => 0.1,
-                EnemyVariant::EMPDisruptor => 3.5,
-                EnemyVariant::AcidSpitter => 1.6,
-                EnemyVariant::TitanColossus => 1.5,
-                EnemyVariant::Broodmother => 2.2,
-                EnemyVariant::AnnihilatorMech => 2.0,
-                _ => 1.0,
-            },
+            attack_cooldown: atk_cd,
             current_cooldown: 0.0,
-            gold_bounty: (gold as f32 * (1.0 + (wave_multiplier - 1.0) * 0.1)) as u32,
+            gold_bounty: (gold as f32 * (1.0 + (wave_multiplier - 1.0) * 0.08)) as u32,
             score_value: (scaled_hp * 0.5) as u32,
             target_tower_id: -1,
             reached_goal: false,
@@ -161,7 +212,11 @@ impl Enemy {
         self.burn_timer = self.burn_timer.max(duration);
     }
 
-    pub fn take_damage(&mut self, damage: f32) -> bool {
+    pub fn take_damage(&mut self, mut damage: f32) -> bool {
+        if self.elite_affix == EliteAffix::Juggernaut {
+            damage *= 0.65;
+        }
+
         let actual_damage = if self.variant == EnemyVariant::Armored {
             // Armored takes reduced damage from low attacks
             (damage - 4.0).max(damage * 0.5)
@@ -169,7 +224,19 @@ impl Enemy {
             damage
         };
 
-        self.hp -= actual_damage;
+        if self.shield_hp > 0.0 {
+            if self.shield_hp >= actual_damage {
+                self.shield_hp -= actual_damage;
+                return false;
+            } else {
+                let remainder = actual_damage - self.shield_hp;
+                self.shield_hp = 0.0;
+                self.hp -= remainder;
+            }
+        } else {
+            self.hp -= actual_damage;
+        }
+
         if self.hp <= 0.0 {
             self.hp = 0.0;
             self.is_dead = true;
@@ -178,6 +245,11 @@ impl Enemy {
     }
 
     pub fn update_status(&mut self, dt: f32) {
+        // Regenerator elite heals 3% max HP per second
+        if self.elite_affix == EliteAffix::Regenerator && !self.is_dead && self.hp < self.max_hp {
+            self.hp = (self.hp + self.max_hp * 0.03 * dt).min(self.max_hp);
+        }
+
         // Slow recovery
         if self.slow_timer > 0.0 {
             self.slow_timer -= dt;

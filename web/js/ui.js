@@ -18,7 +18,8 @@ class UIController {
             { id: 1, name: 'Lvl 1: Frontier Canyon', desc: 'Open tactical arena' },
             { id: 2, name: 'Lvl 2: Circuit Labyrinth', desc: 'Serpentine double S-curve path' },
             { id: 3, name: 'Lvl 3: Serpentine Slalom', desc: 'Vertical zigzag chokepoints' },
-            { id: 4, name: 'Lvl 4: Citadel Gauntlet', desc: 'Perimeter spiral to central core' }
+            { id: 4, name: 'Lvl 4: Citadel Gauntlet', desc: 'Perimeter spiral to central core' },
+            { id: 5, name: 'Lvl 5: Omega Core', desc: 'The ultimate abyssal bastion with bifurcating energy channels' }
         ];
 
         this.selectedTowerType = null;
@@ -186,6 +187,20 @@ class UIController {
             });
         }
 
+        // Tactical Commander Ability Buttons
+        const empBtn = document.getElementById('btn-ability-emp');
+        if (empBtn) {
+            empBtn.addEventListener('click', () => this.game.triggerAbility(0));
+        }
+        const strikeBtn = document.getElementById('btn-ability-strike');
+        if (strikeBtn) {
+            strikeBtn.addEventListener('click', () => this.game.triggerAbility(1));
+        }
+        const overdriveBtn = document.getElementById('btn-ability-overdrive');
+        if (overdriveBtn) {
+            overdriveBtn.addEventListener('click', () => this.game.triggerAbility(2));
+        }
+
         // Restart buttons
         document.querySelectorAll('.btn-restart').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -209,12 +224,23 @@ class UIController {
             } else if (e.key === ' ') {
                 e.preventDefault();
                 this.game.startNextWave();
+            } else if (e.key === 'q' || e.key === 'Q') {
+                this.game.triggerAbility(0);
+            } else if (e.key === 'e' || e.key === 'E') {
+                this.game.triggerAbility(1);
+            } else if (e.key === 'f' || e.key === 'F') {
+                this.game.triggerAbility(2);
             } else if (e.key === 'u' || e.key === 'U') {
                 if (this.selectedPlacedTower) this.game.upgradeTower(this.selectedPlacedTower.id);
             } else if (e.key === 'r' || e.key === 'R') {
                 if (this.selectedPlacedTower) this.game.repairTower(this.selectedPlacedTower.id);
             } else if (e.key === 's' || e.key === 'S') {
                 if (this.selectedPlacedTower) this.game.sellTower(this.selectedPlacedTower.id);
+            } else if (e.key === 't' || e.key === 'T') {
+                if (this.selectedPlacedTower) {
+                    const nextP = ((this.selectedPlacedTower.priority || 0) + 1) % 4;
+                    this.game.setTowerTargeting(this.selectedPlacedTower.id, nextP);
+                }
             }
         });
     }
@@ -223,7 +249,53 @@ class UIController {
         document.getElementById('hud-gold').textContent = state.gold;
         document.getElementById('hud-lives').textContent = `${state.lives}/${state.maxLives}`;
         document.getElementById('hud-score').textContent = state.score;
-        document.getElementById('hud-wave').textContent = state.wave;
+
+        if (state.surgeTier > 0) {
+            const surgeRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][state.surgeTier - 1] || state.surgeTier;
+            const threatPct = Math.round((Math.pow(1.75, state.surgeTier) - 1) * 100);
+            document.getElementById('hud-wave').innerHTML = `${state.wave} <span class="surge-badge">SURGE ${surgeRoman} (+${threatPct}%)</span>`;
+        } else {
+            document.getElementById('hud-wave').textContent = state.wave;
+        }
+
+        // Tactical abilities cooldowns
+        const cdEmp = document.getElementById('cd-emp');
+        const btnEmp = document.getElementById('btn-ability-emp');
+        if (cdEmp && btnEmp) {
+            const cd = state.abilities ? state.abilities.empCooldown : 0;
+            btnEmp.disabled = cd > 0;
+            cdEmp.textContent = cd > 0 ? `${cd.toFixed(1)}s` : 'READY';
+        }
+
+        const cdStrike = document.getElementById('cd-strike');
+        const btnStrike = document.getElementById('btn-ability-strike');
+        if (cdStrike && btnStrike) {
+            const cd = state.abilities ? state.abilities.strikeCooldown : 0;
+            btnStrike.disabled = cd > 0;
+            cdStrike.textContent = cd > 0 ? `${cd.toFixed(1)}s` : 'READY';
+        }
+
+        const cdOverdrive = document.getElementById('cd-overdrive');
+        const btnOverdrive = document.getElementById('btn-ability-overdrive');
+        if (cdOverdrive && btnOverdrive) {
+            const cd = state.abilities ? state.abilities.overdriveCooldown : 0;
+            const isActive = state.abilities ? state.abilities.overdriveActive : false;
+            btnOverdrive.disabled = cd > 0 && !isActive;
+            btnOverdrive.classList.toggle('active', isActive);
+            cdOverdrive.textContent = isActive ? 'ACTIVE!' : (cd > 0 ? `${cd.toFixed(1)}s` : 'READY');
+        }
+
+        // Surge Threat Indicator Bar
+        const surgeIndicator = document.getElementById('surge-alert-badge');
+        if (surgeIndicator) {
+            if (state.surgeTier > 0) {
+                surgeIndicator.classList.remove('hidden');
+                const threatPct = Math.round((Math.pow(1.75, state.surgeTier) - 1) * 100);
+                surgeIndicator.textContent = `⚠️ SURGE TIER ${state.surgeTier}: +${threatPct}% HOSTILE THREAT`;
+            } else {
+                surgeIndicator.classList.add('hidden');
+            }
+        }
 
         // Update Level pills
         this.levels.forEach(lvl => {
@@ -357,6 +429,22 @@ class UIController {
         if (refundBox) {
             refundBox.innerHTML = `<strong>Refund:</strong> 💰 ${refund}`;
         }
+
+        // Update kills stat box
+        const killsBox = document.getElementById('detail-stat-kills');
+        if (killsBox) {
+            killsBox.innerHTML = `<strong>💀 Kills:</strong> ${t.kills || 0}`;
+        }
+
+        // Update priority button
+        const prioBtn = document.getElementById('btn-toggle-priority');
+        if (prioBtn) {
+            const priorityNames = ['FIRST', 'STRONGEST', 'WEAKEST', 'CLOSEST'];
+            const curName = priorityNames[t.priority || 0];
+            if (prioBtn.textContent.trim() !== curName) {
+                prioBtn.textContent = curName;
+            }
+        }
     }
 
     selectPlacedTower(tower) {
@@ -372,7 +460,7 @@ class UIController {
             panel.innerHTML = `
                 <div class="empty-detail">
                     <p>💡 Select a tower on the grid to inspect stats, upgrade tiers, repair, or sell.</p>
-                    <p class="hint">Hotkeys: [1-8] Build, [U] Upgrade, [R] Repair, [S] Sell, [Space] Start Wave</p>
+                    <p class="hint">Hotkeys: [1-8] Build, [U] Upgrade, [R] Repair, [S] Sell, [T] Targeting, [Space] Wave</p>
                 </div>
             `;
             return;
@@ -401,6 +489,13 @@ class UIController {
             <div class="detail-stats-grid">
                 <div class="stat-box"><strong>Range:</strong> ${t.range.toFixed(1)}</div>
                 <div class="stat-box" id="detail-stat-status"><strong>Status:</strong> ${t.stunTimer > 0 ? '⚡ Stunned' : 'Active'}</div>
+                <div class="stat-box" id="detail-stat-priority">
+                    <strong>🎯 Target:</strong>
+                    <button id="btn-toggle-priority" class="priority-toggle-btn" title="Click to cycle targeting priority [Hotkey: T]">
+                        ${['FIRST', 'STRONGEST', 'WEAKEST', 'CLOSEST'][t.priority || 0]}
+                    </button>
+                </div>
+                <div class="stat-box" id="detail-stat-kills"><strong>💀 Kills:</strong> ${t.kills || 0}</div>
                 <div class="stat-box"><strong>Grid:</strong> (${t.gx}, ${t.gy})</div>
                 <div class="stat-box" id="detail-stat-refund"><strong>Refund:</strong> 💰 ${refund}</div>
             </div>
@@ -424,6 +519,14 @@ class UIController {
             </div>
         `;
 
+        const prioBtn = document.getElementById('btn-toggle-priority');
+        if (prioBtn) {
+            prioBtn.addEventListener('click', () => {
+                const nextP = ((t.priority || 0) + 1) % 4;
+                this.game.setTowerTargeting(t.id, nextP);
+            });
+        }
+
         const upBtn = document.getElementById('btn-upgrade-tower');
         if (upBtn) upBtn.addEventListener('click', () => this.game.upgradeTower(t.id));
 
@@ -432,6 +535,23 @@ class UIController {
 
         const sellBtn = document.getElementById('btn-sell-tower');
         if (sellBtn) sellBtn.addEventListener('click', () => this.game.sellTower(t.id));
+    }
+
+    showSurgeWarning(tier) {
+        const banner = document.getElementById('surge-warning-banner');
+        const desc = document.getElementById('surge-banner-desc');
+        if (!banner) return;
+        const roman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][tier - 1] || tier;
+        const threatPct = Math.round((Math.pow(1.75, tier) - 1) * 100);
+        if (desc) {
+            desc.textContent = `TITAN OVERDRIVE SURGE ${roman}: Hostile HP, attack power & speed exponentially increased by +${threatPct}%!`;
+        }
+        banner.classList.remove('hidden');
+        setTimeout(() => banner.classList.add('visible'), 50);
+        setTimeout(() => {
+            banner.classList.remove('visible');
+            setTimeout(() => banner.classList.add('hidden'), 500);
+        }, 3800);
     }
 
     renderBestiary() {

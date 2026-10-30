@@ -4,6 +4,46 @@ use crate::projectile::{Projectile, ProjectileType};
 use crate::tower::{Tower, TowerType};
 use crate::wave::WaveManager;
 
+#[derive(Clone, Debug)]
+pub struct CommanderAbilities {
+    pub emp_cooldown: f32,
+    pub emp_max_cooldown: f32,
+    pub strike_cooldown: f32,
+    pub strike_max_cooldown: f32,
+    pub overdrive_timer: f32,
+    pub overdrive_cooldown: f32,
+    pub overdrive_max_cooldown: f32,
+}
+
+impl CommanderAbilities {
+    pub fn new() -> Self {
+        Self {
+            emp_cooldown: 0.0,
+            emp_max_cooldown: 35.0,
+            strike_cooldown: 0.0,
+            strike_max_cooldown: 45.0,
+            overdrive_timer: 0.0,
+            overdrive_cooldown: 0.0,
+            overdrive_max_cooldown: 48.0,
+        }
+    }
+
+    pub fn update(&mut self, dt: f32) {
+        if self.emp_cooldown > 0.0 {
+            self.emp_cooldown = (self.emp_cooldown - dt).max(0.0);
+        }
+        if self.strike_cooldown > 0.0 {
+            self.strike_cooldown = (self.strike_cooldown - dt).max(0.0);
+        }
+        if self.overdrive_cooldown > 0.0 {
+            self.overdrive_cooldown = (self.overdrive_cooldown - dt).max(0.0);
+        }
+        if self.overdrive_timer > 0.0 {
+            self.overdrive_timer = (self.overdrive_timer - dt).max(0.0);
+        }
+    }
+}
+
 pub struct VisualEvent {
     pub event_type: u8, // 0: explosion/impact, 1: laser, 2: lightning, 3: emp_pulse, 4: heal_aura, 5: tower_repair, 6: text
     pub x: f32,
@@ -19,6 +59,7 @@ pub struct Game {
     pub enemies: Vec<Enemy>,
     pub projectiles: Vec<Projectile>,
     pub wave_manager: WaveManager,
+    pub abilities: CommanderAbilities,
 
     pub gold: i32,
     pub lives: i32,
@@ -49,6 +90,7 @@ impl Game {
             enemies: Vec::new(),
             projectiles: Vec::new(),
             wave_manager: WaveManager::new(),
+            abilities: CommanderAbilities::new(),
             gold: 450,
             lives: 20,
             max_lives: 20,
@@ -78,7 +120,7 @@ impl Game {
     }
 
     pub fn load_level(&mut self, level: usize) -> bool {
-        let lvl = level.clamp(1, 4);
+        let lvl = level.clamp(1, 5);
         if lvl > self.max_unlocked_level {
             return false;
         }
@@ -89,6 +131,7 @@ impl Game {
         self.enemies.clear();
         self.projectiles.clear();
         self.wave_manager = WaveManager::new();
+        self.abilities = CommanderAbilities::new();
         self.gold = 450 + (lvl as i32 - 1) * 75;
         self.lives = 20;
         self.game_over = false;
@@ -218,6 +261,9 @@ impl Game {
 
         self.visual_events.clear();
 
+        // 0. Update Commander tactical abilities
+        self.abilities.update(dt);
+
         // 1. Wave spawning
         self.update_wave_spawn(dt);
 
@@ -250,10 +296,20 @@ impl Game {
             if self.wave_manager.spawn_timer <= 0.0 {
                 let item = self.wave_manager.spawn_queue.remove(0);
                 let id = self.alloc_id();
-                let wave_multiplier = 1.0 + (self.wave_manager.current_wave as f32 - 1.0) * 0.16;
+
+                // EXPONENTIAL DIFFICULTY SCALING:
+                // Waves 1-5 ramp normally up to first Titan.
+                // Every 4 waves after Wave 5 (waves 9, 13, 17, 21, ...) difficulty multiplies exponentially!
+                let wave = self.wave_manager.current_wave;
+                let surge_tier = if wave > 5 { (wave - 5) / 4 } else { 0 };
+                let wave_in_tier = if wave > 5 { (wave - 5) % 4 } else { wave };
+                let surge_mult = 1.75_f32.powi(surge_tier as i32);
+                let linear_scale = 1.0 + (wave as f32 - 1.0) * 0.16 + (wave_in_tier as f32 * 0.10);
+                let wave_multiplier = linear_scale * surge_mult;
+
                 let sx = self.grid.spawn_x as f32 + 0.5;
                 let sy = self.grid.spawn_y as f32 + 0.5;
-                let enemy = Enemy::new(id, item.variant, wave_multiplier, sx, sy);
+                let enemy = Enemy::new(id, item.variant, wave_multiplier, surge_tier, sx, sy);
                 self.enemies.push(enemy);
                 self.wave_manager.enemies_spawned += 1;
                 self.wave_manager.spawn_timer = item.delay;
@@ -266,10 +322,10 @@ impl Game {
             self.gold += wave_bonus as i32;
             self.score += self.wave_manager.current_wave * 250;
 
-            // Check Level Unlocking: Completing Wave 10 unlocks next level!
+            // Check Level Unlocking: Completing Wave 10 unlocks next level (up to 5)!
             if self.wave_manager.current_wave >= 10 {
                 self.level_completed = true;
-                if self.current_level >= self.max_unlocked_level && self.current_level < 4 {
+                if self.current_level >= self.max_unlocked_level && self.current_level < 5 {
                     self.max_unlocked_level = self.current_level + 1;
                     self.visual_events.push(VisualEvent {
                         event_type: 6, // Text notification
@@ -413,8 +469,11 @@ impl Game {
         // Append boss-spawned minions
         for minion in new_spawned_minions {
             let id = self.alloc_id();
-            let wave_mul = 1.0 + (self.wave_manager.current_wave as f32 - 1.0) * 0.15;
-            let enemy = Enemy::new(id, minion.variant, wave_mul, minion.x, minion.y);
+            let wave = self.wave_manager.current_wave;
+            let surge_tier = if wave > 5 { (wave - 5) / 4 } else { 0 };
+            let surge_mult = 1.75_f32.powi(surge_tier as i32);
+            let wave_mul = (1.0 + (wave as f32 - 1.0) * 0.15) * surge_mult;
+            let enemy = Enemy::new(id, minion.variant, wave_mul, surge_tier, minion.x, minion.y);
             self.enemies.push(enemy);
         }
 
@@ -632,6 +691,10 @@ impl Game {
     }
 
     fn update_towers(&mut self, dt: f32) {
+        let is_overdrive = self.abilities.overdrive_timer > 0.0;
+        let cooldown_dt = if is_overdrive { dt * 2.0 } else { dt };
+        let dmg_mult = if is_overdrive { 1.35 } else { 1.0 };
+
         // Step A: Aegis Towers repair nearby towers
         for i in 0..self.towers.len() {
             if self.towers[i].tower_type == TowerType::Aegis {
@@ -671,35 +734,32 @@ impl Game {
             }
 
             if tower.cooldown > 0.0 {
-                tower.cooldown -= dt;
+                tower.cooldown -= cooldown_dt;
             }
 
             let mut target_idx: Option<usize> = None;
+            let mut best_score = -9999999.0;
+            let goal_x = self.grid.goal_x as f32;
+            let goal_y = self.grid.goal_y as f32;
 
-            if tower.tower_type == TowerType::Sniper {
-                let mut max_hp = -1.0;
-                for (idx, enemy) in self.enemies.iter().enumerate() {
-                    if enemy.is_dead {
-                        continue;
-                    }
-                    let dist = ((enemy.x - tower.world_x).powi(2) + (enemy.y - tower.world_y).powi(2)).sqrt();
-                    if dist <= tower.range && enemy.hp > max_hp {
-                        max_hp = enemy.hp;
-                        target_idx = Some(idx);
-                    }
+            for (idx, enemy) in self.enemies.iter().enumerate() {
+                if enemy.is_dead {
+                    continue;
                 }
-            } else {
-                let mut max_progress = -9999.0;
-                for (idx, enemy) in self.enemies.iter().enumerate() {
-                    if enemy.is_dead {
-                        continue;
-                    }
-                    let dist = ((enemy.x - tower.world_x).powi(2) + (enemy.y - tower.world_y).powi(2)).sqrt();
-                    if dist <= tower.range {
-                        if enemy.x > max_progress {
-                            max_progress = enemy.x;
-                            target_idx = Some(idx);
+                let dist = ((enemy.x - tower.world_x).powi(2) + (enemy.y - tower.world_y).powi(2)).sqrt();
+                if dist <= tower.range {
+                    let score = match tower.targeting_priority {
+                        crate::tower::TargetingPriority::First => {
+                            let goal_dist = ((enemy.x - goal_x).powi(2) + (enemy.y - goal_y).powi(2)).sqrt();
+                            1000.0 - goal_dist
                         }
+                        crate::tower::TargetingPriority::Strongest => enemy.hp + enemy.shield_hp,
+                        crate::tower::TargetingPriority::Weakest => 100000.0 - (enemy.hp + enemy.shield_hp),
+                        crate::tower::TargetingPriority::Closest => 1000.0 - dist,
+                    };
+                    if score > best_score {
+                        best_score = score;
+                        target_idx = Some(idx);
                     }
                 }
             }
@@ -708,6 +768,7 @@ impl Game {
                 let enemy = &mut self.enemies[t_idx];
                 tower.target_id = enemy.id as i32;
                 tower.rotation = (enemy.y - tower.world_y).atan2(enemy.x - tower.world_x);
+                let actual_damage = tower.damage * dmg_mult;
 
                 if tower.tower_type == TowerType::Laser {
                     if tower.laser_target_id == enemy.id as i32 {
@@ -717,7 +778,7 @@ impl Game {
                         tower.laser_ramp_time = 0.0;
                     }
                     let ramp_factor = 1.0 + (tower.laser_ramp_time * 0.8).min(3.0);
-                    let beam_damage = tower.damage * ramp_factor * dt;
+                    let beam_damage = actual_damage * ramp_factor * dt;
                     enemy.take_damage(beam_damage);
                     tower.total_damage += beam_damage;
                     self.total_damage_dealt += beam_damage;
@@ -750,7 +811,7 @@ impl Game {
                                 enemy.id as i32,
                                 enemy.x,
                                 enemy.y,
-                                tower.damage,
+                                actual_damage,
                             ));
                         }
                         TowerType::Cannon => {
@@ -761,7 +822,7 @@ impl Game {
                                 tower.world_y,
                                 enemy.x,
                                 enemy.y,
-                                tower.damage,
+                                actual_damage,
                                 splash,
                             ));
                         }
@@ -775,7 +836,7 @@ impl Game {
                                 enemy.id as i32,
                                 enemy.x,
                                 enemy.y,
-                                tower.damage,
+                                actual_damage,
                                 slow,
                                 dur,
                             ));
@@ -785,7 +846,7 @@ impl Game {
                             let mut chained_targets = Vec::new();
                             let mut current_tx = tower.world_x;
                             let mut current_ty = tower.world_y;
-                            let mut dmg = tower.damage;
+                            let mut dmg = actual_damage;
 
                             for _ in 0..max_chains {
                                 let mut best_next: Option<(usize, f32, f32)> = None;
@@ -833,14 +894,14 @@ impl Game {
                                 tower.world_y,
                                 enemy.x,
                                 enemy.y,
-                                tower.damage,
-                                tower.damage * 0.7,
+                                actual_damage,
+                                actual_damage * 0.7,
                             ));
                         }
                         TowerType::Sniper => {
-                            enemy.take_damage(tower.damage);
-                            tower.total_damage += tower.damage;
-                            self.total_damage_dealt += tower.damage;
+                            enemy.take_damage(actual_damage);
+                            tower.total_damage += actual_damage;
+                            self.total_damage_dealt += actual_damage;
                             if enemy.is_dead {
                                 tower.kills += 1;
                             }
@@ -1018,6 +1079,122 @@ impl Game {
                 self.towers.remove(idx);
             }
             self.grid.recalculate_flow_field();
+        }
+    }
+
+    pub fn current_surge_tier(&self) -> u32 {
+        if self.wave_manager.current_wave > 5 {
+            (self.wave_manager.current_wave - 5) / 4
+        } else {
+            0
+        }
+    }
+
+    pub fn set_tower_targeting(&mut self, tower_id: usize, priority: u8) -> bool {
+        if let Some(t) = self.towers.iter_mut().find(|t| t.id == tower_id) {
+            t.targeting_priority = crate::tower::TargetingPriority::from_u8(priority);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn trigger_ability(&mut self, ability_type: u8, target_x: f32, target_y: f32) -> bool {
+        match ability_type {
+            0 => {
+                // Orbital EMP Blast
+                if self.abilities.emp_cooldown > 0.0 {
+                    return false;
+                }
+                self.abilities.emp_cooldown = self.abilities.emp_max_cooldown;
+
+                for enemy in self.enemies.iter_mut() {
+                    if !enemy.is_dead {
+                        enemy.slow_factor = 0.0;
+                        enemy.slow_timer = 3.5;
+                    }
+                }
+
+                for tower in self.towers.iter_mut() {
+                    tower.stun_timer = 0.0;
+                }
+
+                self.visual_events.push(VisualEvent {
+                    event_type: 3,
+                    x: 12.0,
+                    y: 7.0,
+                    target_x: 0.0,
+                    target_y: 0.0,
+                    value: 25.0,
+                });
+                true
+            }
+            1 => {
+                // Kinetic Orbital Strike
+                if self.abilities.strike_cooldown > 0.0 {
+                    return false;
+                }
+                self.abilities.strike_cooldown = self.abilities.strike_max_cooldown;
+
+                let tx = target_x.clamp(0.0, 24.0);
+                let ty = target_y.clamp(0.0, 14.0);
+                let radius = 3.5;
+                let strike_damage = 950.0;
+
+                for enemy in self.enemies.iter_mut() {
+                    if enemy.is_dead {
+                        continue;
+                    }
+                    let d = ((enemy.x - tx).powi(2) + (enemy.y - ty).powi(2)).sqrt();
+                    if d <= radius {
+                        let falloff = 1.0 - (d / radius) * 0.4;
+                        let dmg = strike_damage * falloff;
+                        enemy.take_damage(dmg);
+                        self.total_damage_dealt += dmg;
+                    }
+                }
+
+                self.visual_events.push(VisualEvent {
+                    event_type: 1,
+                    x: tx,
+                    y: 0.0,
+                    target_x: tx,
+                    target_y: ty,
+                    value: 6.0,
+                });
+                self.visual_events.push(VisualEvent {
+                    event_type: 0,
+                    x: tx,
+                    y: ty,
+                    target_x: 0.0,
+                    target_y: 0.0,
+                    value: radius,
+                });
+                true
+            }
+            2 => {
+                // Emergency Bastion Overdrive
+                if self.abilities.overdrive_cooldown > 0.0 {
+                    return false;
+                }
+                self.abilities.overdrive_cooldown = self.abilities.overdrive_max_cooldown;
+                self.abilities.overdrive_timer = 8.0;
+
+                for tower in self.towers.iter_mut() {
+                    let repair_amount = tower.max_hp * 0.35;
+                    tower.hp = (tower.hp + repair_amount).min(tower.max_hp);
+                    self.visual_events.push(VisualEvent {
+                        event_type: 5,
+                        x: tower.world_x,
+                        y: tower.world_y,
+                        target_x: 0.0,
+                        target_y: 0.0,
+                        value: 50.0,
+                    });
+                }
+                true
+            }
+            _ => false,
         }
     }
 }

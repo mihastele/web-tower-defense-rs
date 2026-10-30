@@ -186,6 +186,40 @@ class SoundEngine {
         setTimeout(() => this.playTone(370, 'sawtooth', 0.4, 0.4), 280);
     }
 
+    // Sound effect: Tactical EMP Blast
+    playEmpBlast() {
+        if (!this.sfxEnabled) return;
+        this.init();
+        this.playTone(1200, 'sawtooth', 0.15, 0.35);
+        setTimeout(() => {
+            this.playTone(300, 'sine', 0.6, 0.45);
+            this.playNoise(0.5, 400, 0.3);
+        }, 120);
+    }
+
+    // Sound effect: Tactical Kinetic Orbital Strike
+    playOrbitalStrike() {
+        if (!this.sfxEnabled) return;
+        this.init();
+        // Whistle down
+        this.playTone(1800, 'sine', 0.25, 0.25, 0.05);
+        setTimeout(() => {
+            // Earth-shattering impact
+            this.playNoise(0.8, 900, 0.6);
+            this.playTone(55, 'sawtooth', 0.7, 0.6);
+        }, 220);
+    }
+
+    // Sound effect: Bastion Overdrive Activation
+    playOverdrive() {
+        if (!this.sfxEnabled) return;
+        this.init();
+        this.playTone(220, 'triangle', 0.1, 0.3);
+        setTimeout(() => this.playTone(330, 'triangle', 0.1, 0.35), 80);
+        setTimeout(() => this.playTone(440, 'sawtooth', 0.1, 0.4), 160);
+        setTimeout(() => this.playTone(660, 'sawtooth', 0.3, 0.45), 240);
+    }
+
     // Background synth music sequencer
     toggleMusic() {
         this.musicEnabled = !this.musicEnabled;

@@ -68,6 +68,34 @@
             <span class="level-req-hint">Beat Wave 10 to unlock next sector</span>
         </nav>
 
+        <!-- Commander Tactical Superweapons Bar -->
+        <div class="commander-tactical-bar">
+            <div class="tactical-title">⚡ COMMANDER ABILITIES:</div>
+            <div class="tactical-actions">
+                <button id="btn-ability-emp" class="ability-btn" title="Orbital EMP Shockwave: Stuns all enemies for 3.5s & reboots towers [Hotkey: Q]">
+                    <span class="ability-key">Q</span>
+                    <span class="ability-icon">⚡</span>
+                    <span class="ability-name">EMP Blast</span>
+                    <span class="ability-cd-overlay" id="cd-emp">READY</span>
+                </button>
+                <button id="btn-ability-strike" class="ability-btn" title="Kinetic Orbital Strike: 950 area damage kinetic missile [Hotkey: E]">
+                    <span class="ability-key">E</span>
+                    <span class="ability-icon">💥</span>
+                    <span class="ability-name">Orbital Strike</span>
+                    <span class="ability-cd-overlay" id="cd-strike">READY</span>
+                </button>
+                <button id="btn-ability-overdrive" class="ability-btn" title="Bastion Overdrive: Heals towers 35% HP & doubles fire rate for 8s [Hotkey: F]">
+                    <span class="ability-key">F</span>
+                    <span class="ability-icon">🛡️</span>
+                    <span class="ability-name">Overdrive</span>
+                    <span class="ability-cd-overlay" id="cd-overdrive">READY</span>
+                </button>
+            </div>
+            <div id="surge-alert-badge" class="surge-threat-indicator hidden">
+                ⚠️ EXPONENTIAL THREAT SURGE ACTIVE!
+            </div>
+        </div>
+
         <!-- Main Battle Arena -->
         <main class="main-stage">
             <div class="canvas-wrapper">
@@ -143,6 +171,17 @@
             <h2 class="modal-title success">VICTORY ACHIEVED</h2>
             <p>All invasion waves and bosses neutralized!</p>
             <button class="btn-pulse btn-restart">🚀 PLAY ENDLESS MODE</button>
+        </div>
+    </div>
+
+    <!-- Exponential Cataclysm Surge Banner Overlay -->
+    <div id="surge-warning-banner" class="surge-banner-overlay hidden">
+        <div class="surge-banner-content">
+            <div class="surge-banner-icon">⚠️</div>
+            <div class="surge-banner-text">
+                <div class="surge-banner-title">CATACLYSM THREAT SURGE ACTIVATED!</div>
+                <div class="surge-banner-sub" id="surge-banner-desc">Wave Surge: Hostiles upgraded with exponential HP, speed, and attack power!</div>
+            </div>
         </div>
     </div>
 

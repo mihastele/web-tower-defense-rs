@@ -12,6 +12,7 @@ An action-packed, cross-platform Tower Defense strategy game featuring **real-ti
   - **Sector 2: Circuit Labyrinth** (Double S-Curve Path): 3x longer serpentine canyon with dual industrial dividing barriers. Unlocked by beating **Wave 10** on Sector 1!
   - **Sector 3: Serpentine Slalom** (Vertical Zigzag): Alternating vertical barrier pillars creating tight defensive chokepoints. Unlocked by beating **Wave 10** on Sector 2!
   - **Sector 4: Citadel Gauntlet** (Perimeter Spiral to Center): Perimeter ring route that spirals inward to the central core. Unlocked by beating **Wave 10** on Sector 3!
+  - **Sector 5: Omega Core** (The Abyssal Crucible): Symmetrical bifurcating energy baffles creating twin tactical arenas. Unlocked by beating **Wave 10** on Sector 4!
 - **Dynamic Energy Flow Visualizer**: Real-time animated neon energy line shows the active optimal pathing through your maze.
 - **BFS Reachability Algorithm**: Towers can be placed anywhere along corridors and path tiles, but **cannot completely block off the path to the Core**.
 
@@ -34,14 +35,47 @@ These enemies **actively attack and destroy your towers** to breach your maze:
 9. **EMP Disruptor**: Emits an electromagnetic shockwave that temporarily stuns and disables towers for 3.5 seconds.
 10. **Acid Spitter**: Launches corrosive toxic bile that eats away tower health over time.
 
-#### C. Supreme Boss Encounters (Every 5 Waves)
+#### C. Supreme Boss Encounters & Exponential Cataclysm Difficulty
 11. **Titan Colossus (Wave 5 Boss)**: Massive quadruped walking fortress that unleashes ground-shaking seismic stomps against nearby towers.
 12. **Broodmother Queen (Wave 10 Boss)**: Giant alien hive matriarch that continually hatches swarms of runner and siege minions while spraying acid.
 13. **Annihilator Dreadnought (Wave 15+ Boss)**: Antimatter assault mech with chest reactor beams and high-yield orbital strikes.
 
+#### D. Exponential Cataclysm Surges (Every 4 Waves After Titan Spawn)
+Starting after the first Titan Colossus appears on **Wave 5**, the invasion enters brutal **Exponential Cataclysm Surges** every 4 waves:
+- **Wave 9 (Surge I - 4 waves after Titan)**: +175% Threat Multiplier! Titan Colossus returns escorted by heavy siege brawlers, acid spitters, and EMP disruptors.
+- **Wave 13 (Surge II - 8 waves after Titan)**: +306% Threat Multiplier! Dual-Boss Cataclysm: Titan Colossus AND Broodmother Queen deploy simultaneously!
+- **Wave 17 (Surge III - 12 waves after Titan)**: +536% Threat Multiplier! Annihilator Dreadnought AND Titan Colossus siege vanguard!
+- **Wave 21 (Surge IV - 16 waves after Titan)**: +938% Threat Multiplier! The Apocalypse Trinity: All three bosses arrive together with massive demolition hordes!
+- **Endless Waves (15+)**: Cataclysm Surges scale exponentially (`1.75^tier`), ramping enemy HP, attack damage against towers, and sprint movement speeds!
+
+#### E. Elite Enemy Affixes & Mutations
+During high waves and cataclysm surges, hostiles have a high chance to roll deadly Elite Mutations:
+- **🛡️ Kinetic Shield**: Absorbs up to 45% of maximum HP in a protective cyan energy bubble before taking damage.
+- **⚡ Berserk**: Enraged fire aura, granting +30% movement speed and 35% faster attack rate against towers!
+- **💚 Regenerator**: Bio-nanite infusion regenerating 3% maximum HP every second.
+- **⛓️ Juggernaut Armor**: Heavy armor plating granting 35% flat damage reduction from all physical weapons!
+
 ---
 
-### 3. Arsenal of 8 Towers & 3 Upgrade Tiers (24 Unique Sprites)
+### 3. Tactical Commander Superweapons
+To counter overwhelming exponential surges, commanders have 3 orbital tactical abilities with active cooldowns:
+1. **⚡ Orbital EMP Blast (Hotkey: `Q`)**: Discharges an ion pulse across the entire arena, stunning all hostiles for 3.5s and immediately rebooting disabled friendly towers.
+2. **💥 Kinetic Orbital Strike (Hotkey: `E`)**: Calls down high-explosive orbital artillery onto target coordinates (or heaviest hostile cluster), dealing 950 area damage with screen-shaking impact.
+3. **🛡️ Bastion Overdrive (Hotkey: `F`)**: Emergency nanite surge: instantly repairs 35% HP to all placed towers and overclocks all weapons with 2x fire rate for 8 seconds.
+
+---
+
+### 4. Dynamic Tower Targeting Priority & Kill Tracking
+Every tower features real-time targeting priority configuration (Hotkey: `T` or Inspection Panel button):
+- **FIRST**: Targets the enemy furthest along the path closest to the Core.
+- **STRONGEST**: Focuses high-HP targets (essential for Snipers & Lasers melting Titans and Bosses!).
+- **WEAKEST**: Prioritizes low-health runners to quickly cull swarms.
+- **CLOSEST**: Targets the nearest hostile to the tower.
+- **Kill Tracking**: Each tower keeps a permanent kill counter and damage stats throughout the battle!
+
+---
+
+### 5. Arsenal of 8 Towers & 3 Upgrade Tiers (24 Unique Sprites)
 Every tower features 3 distinct visual tiers (base, turret barrels, glowing energy coils, armor plates):
 
 1. **Gatling Turret**: High rate of fire, rapid physical damage.
@@ -120,6 +154,10 @@ http://localhost:8080
 
 - **`1` - `8`**: Select Tower from hotbar
 - **`Left Click`**: Place tower on grid / Select existing tower to inspect
+- **`Q`**: ⚡ Orbital EMP Blast (Commander Ability)
+- **`E`**: 💥 Kinetic Orbital Strike at cursor / target (Commander Ability)
+- **`F`**: 🛡️ Bastion Overdrive - 2x fire rate & repair (Commander Ability)
+- **`T`**: Cycle targeting priority (`FIRST` → `STRONGEST` → `WEAKEST` → `CLOSEST`)
 - **`U`**: Upgrade selected tower to next tier
 - **`R`**: Repair damaged tower
 - **`S`**: Sell selected tower (70% gold refund)

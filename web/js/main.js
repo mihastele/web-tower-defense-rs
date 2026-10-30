@@ -17,6 +17,8 @@ class GameApp {
             maxLives: 20,
             score: 0,
             wave: 0,
+            surgeTier: 0,
+            lastSurgeAlertWave: 0,
             isWaveActive: false,
             timeUntilNextWave: 10,
             gameOver: false,
@@ -26,6 +28,12 @@ class GameApp {
             projectilesCount: 0,
             eventsCount: 0,
             pathCount: 0,
+            abilities: {
+                empCooldown: 0,
+                strikeCooldown: 0,
+                overdriveCooldown: 0,
+                overdriveActive: false
+            },
             towers: [],
             enemies: [],
             projectiles: [],
@@ -397,12 +405,60 @@ class GameApp {
         this.syncState();
     }
 
+    triggerAbility(abilityType) {
+        if (!this.wasm) return;
+        let tx = 12.0;
+        let ty = 7.0;
+        if (this.hoverTile) {
+            tx = this.hoverTile.x + 0.5;
+            ty = this.hoverTile.y + 0.5;
+        } else if (this.state.enemies.length > 0) {
+            const target = this.state.enemies[0];
+            tx = target.x;
+            ty = target.y;
+        }
+
+        const res = this.wasm.game_trigger_ability(abilityType, tx, ty);
+        if (res === 1) {
+            if (abilityType === 0) {
+                this.sound.playEmpBlast();
+                this.renderer.screenShake(14, 0.45);
+                this.renderer.addFloatingText(12, 7, "⚡ EMP BLAST DISCHARGED!", "#38bdf8");
+            } else if (abilityType === 1) {
+                this.sound.playOrbitalStrike();
+                this.renderer.screenShake(22, 0.65);
+                this.renderer.addFloatingText(tx, ty, "💥 KINETIC STRIKE IMPACT!", "#ef4444");
+            } else if (abilityType === 2) {
+                this.sound.playOverdrive();
+                this.renderer.screenShake(10, 0.35);
+                this.renderer.addFloatingText(12, 7, "🛡️ BASTION OVERDRIVE (2X FIRE RATE)!", "#fbbf24");
+            }
+            this.syncState();
+        } else {
+            this.sound.playError();
+        }
+    }
+
+    setTowerTargeting(towerId, priority) {
+        if (!this.wasm) return;
+        const res = this.wasm.game_set_tower_targeting(towerId, priority);
+        if (res === 1) {
+            this.syncState();
+            const updated = this.state.towers.find(t => t.id === towerId);
+            if (updated) {
+                this.ui.selectPlacedTower(updated);
+                const priorityNames = ['FIRST', 'STRONGEST', 'WEAKEST', 'CLOSEST'];
+                this.renderer.addFloatingText(updated.gx + 0.5, updated.gy + 0.5, `🎯 ${priorityNames[priority]}`, "#38bdf8");
+            }
+        }
+    }
+
     syncState() {
         if (!this.wasm) return;
 
-        // 1. Read Header (20 floats)
+        // 1. Read Header (24 floats)
         const headerPtr = this.wasm.get_header_ptr();
-        const header = new Float32Array(this.memory.buffer, headerPtr, 20);
+        const header = new Float32Array(this.memory.buffer, headerPtr, 24);
 
         this.state.gold = Math.round(header[0]);
         this.state.lives = Math.round(header[1]);
@@ -418,9 +474,24 @@ class GameApp {
         this.state.projectilesCount = Math.round(header[11]);
         this.state.eventsCount = Math.round(header[12]);
         this.state.pathCount = Math.round(header[13]);
+        this.state.surgeTier = Math.round(header[15]);
         this.state.currentLevel = Math.round(header[16]) || 1;
         this.state.maxUnlockedLevel = Math.round(header[17]) || 1;
         this.state.levelCompleted = header[18] > 0.5;
+
+        // Tactical abilities state
+        this.state.abilities.empCooldown = header[20];
+        this.state.abilities.strikeCooldown = header[21];
+        this.state.abilities.overdriveCooldown = header[22];
+        this.state.abilities.overdriveActive = header[23] > 0.5;
+
+        // Check surge wave warning trigger (waves 9, 13, 17, 21, ...)
+        if (this.state.isWaveActive && this.state.wave > 5 && ((this.state.wave - 5) % 4 === 0) && this.state.wave !== this.state.lastSurgeAlertWave) {
+            this.state.lastSurgeAlertWave = this.state.wave;
+            if (this.ui) this.ui.showSurgeWarning(this.state.surgeTier);
+            if (this.sound) this.sound.playBossAlarm();
+            if (this.renderer) this.renderer.screenShake(20, 0.8);
+        }
 
         // Unpack spawn coordinates
         const spawnPacked = Math.round(header[19]);
@@ -457,12 +528,12 @@ class GameApp {
             this.state.goal = this.state.path[this.state.path.length - 1];
         }
 
-        // 3. Read Towers (12 floats each)
+        // 4. Read Towers (14 floats each)
         const towersPtr = this.wasm.get_towers_ptr();
-        const towersRaw = new Float32Array(this.memory.buffer, towersPtr, this.state.towersCount * 12);
+        const towersRaw = new Float32Array(this.memory.buffer, towersPtr, this.state.towersCount * 14);
         this.state.towers = [];
         for (let i = 0; i < this.state.towersCount; i++) {
-            const off = i * 12;
+            const off = i * 14;
             this.state.towers.push({
                 id: Math.round(towersRaw[off]),
                 gx: Math.round(towersRaw[off + 1]),
@@ -475,16 +546,18 @@ class GameApp {
                 maxHp: towersRaw[off + 8],
                 range: towersRaw[off + 9],
                 rotation: towersRaw[off + 10],
-                stunTimer: towersRaw[off + 11]
+                stunTimer: towersRaw[off + 11],
+                priority: Math.round(towersRaw[off + 12]),
+                kills: Math.round(towersRaw[off + 13])
             });
         }
 
-        // 4. Read Enemies (11 floats each)
+        // 5. Read Enemies (14 floats each)
         const enemiesPtr = this.wasm.get_enemies_ptr();
-        const enemiesRaw = new Float32Array(this.memory.buffer, enemiesPtr, this.state.enemiesCount * 11);
+        const enemiesRaw = new Float32Array(this.memory.buffer, enemiesPtr, this.state.enemiesCount * 14);
         this.state.enemies = [];
         for (let i = 0; i < this.state.enemiesCount; i++) {
-            const off = i * 11;
+            const off = i * 14;
             this.state.enemies.push({
                 id: Math.round(enemiesRaw[off]),
                 variant: Math.round(enemiesRaw[off + 1]),
@@ -496,7 +569,10 @@ class GameApp {
                 speed: enemiesRaw[off + 7],
                 rotation: enemiesRaw[off + 8],
                 slowFactor: enemiesRaw[off + 9],
-                burnTimer: enemiesRaw[off + 10]
+                burnTimer: enemiesRaw[off + 10],
+                eliteAffix: Math.round(enemiesRaw[off + 11]),
+                shieldHp: enemiesRaw[off + 12],
+                maxShieldHp: enemiesRaw[off + 13]
             });
         }
 

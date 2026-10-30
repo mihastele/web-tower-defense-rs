@@ -939,3 +939,205 @@ body {
 .badge-walker { background: #065f46; color: #a7f3d0; }
 .badge-attacker { background: #991b1b; color: #fecaca; }
 .badge-boss { background: #581c87; color: #f3e8ff; }
+
+/* Commander Tactical Abilities Bar */
+.commander-tactical-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 14px;
+    background: linear-gradient(90deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.85));
+    border-bottom: 1px solid rgba(56, 189, 248, 0.25);
+    flex-wrap: wrap;
+}
+
+.tactical-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: #38bdf8;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tactical-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex: 1;
+}
+
+.ability-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 5px 12px;
+    color: #f8fafc;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.ability-btn:hover:not(:disabled) {
+    background: #334155;
+    border-color: #38bdf8;
+    transform: translateY(-1px);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.ability-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    border-color: #1e293b;
+}
+
+.ability-btn.active {
+    background: #854d0e;
+    border-color: #fbbf24;
+    box-shadow: 0 0 12px rgba(251, 191, 36, 0.6);
+    animation: pulseGlow 1s infinite alternate;
+}
+
+.ability-key {
+    background: #0f172a;
+    color: #38bdf8;
+    border: 1px solid #38bdf8;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 10px;
+    font-weight: 900;
+    font-family: monospace;
+}
+
+.ability-icon {
+    font-size: 14px;
+}
+
+.ability-cd-overlay {
+    background: rgba(15, 23, 42, 0.85);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-family: monospace;
+    color: #10b981;
+}
+
+.ability-btn:disabled .ability-cd-overlay {
+    color: #ef4444;
+}
+
+.surge-threat-indicator {
+    font-size: 11px;
+    font-weight: 800;
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid #ef4444;
+    padding: 4px 10px;
+    border-radius: 6px;
+    animation: pulseBorder 1.5s infinite;
+}
+
+.surge-badge {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.priority-toggle-btn {
+    background: #0f172a;
+    border: 1px solid #38bdf8;
+    color: #38bdf8;
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: monospace;
+    transition: all 0.15s;
+    margin-left: 4px;
+}
+
+.priority-toggle-btn:hover {
+    background: #38bdf8;
+    color: #0f172a;
+}
+
+/* Surge Cataclysm Banner Overlay */
+.surge-banner-overlay {
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.surge-banner-overlay.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.surge-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: rgba(15, 23, 42, 0.95);
+    border: 2px solid #ef4444;
+    box-shadow: 0 0 30px rgba(239, 68, 68, 0.7);
+    border-radius: 8px;
+    padding: 12px 24px;
+}
+
+.surge-banner-icon {
+    font-size: 28px;
+    animation: shakeIcon 0.5s infinite;
+}
+
+.surge-banner-title {
+    font-size: 15px;
+    font-weight: 900;
+    color: #ef4444;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.surge-banner-sub {
+    font-size: 12px;
+    color: #fca5a5;
+    margin-top: 2px;
+}
+
+@keyframes pulseBorder {
+    0%, 100% { border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 6px rgba(239, 68, 68, 0.2); }
+    50% { border-color: #ef4444; box-shadow: 0 0 14px rgba(239, 68, 68, 0.6); }
+}
+
+@keyframes pulseGlow {
+    from { box-shadow: 0 0 6px rgba(251, 191, 36, 0.4); }
+    to { box-shadow: 0 0 16px rgba(251, 191, 36, 0.9); }
+}
+
+@keyframes shakeIcon {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-8deg); }
+    75% { transform: rotate(8deg); }
+}
